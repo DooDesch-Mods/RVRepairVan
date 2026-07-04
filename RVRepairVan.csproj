@@ -64,6 +64,10 @@
     <Compile Remove="Workspace/**/*.cs" />
   </ItemGroup>
 
+  <!-- Shared "eyes close -> act -> open" transition primitive (DooDesch.Transition). Linked source, self-contained
+       backend-gated; MUST come AFTER the Workspace Remove above so CI does not strip the included files. -->
+  <Import Project="$(MSBuildThisFileDirectory)../Workspace/build/ScreenTransition.props" Condition="Exists('$(MSBuildThisFileDirectory)../Workspace/build/ScreenTransition.props')" />
+
   <!-- Mod loader references (both backends) -->
   <ItemGroup>
     <Reference Include="MelonLoader">

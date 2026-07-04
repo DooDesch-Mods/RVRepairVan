@@ -1,97 +1,55 @@
 using System;
-using System.Collections;
 using System.Reflection;
+using DooDesch.Transition;
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Il2CppScheduleOne.Audio;
-using Il2CppScheduleOne.UI;
-using MelonLoader;
 
 namespace RVRepairVan.Effects
 {
     /// <summary>
-    /// Short "repair" cinematic for the Marco RV repair: fade the screen to black (the game's own BlackOverlay),
-    /// hold ~2.5s while a bundled repair sound plays AND the RV is swapped (hidden behind the black), fade back,
-    /// then run a completion callback (Marco's line). Input is locked during the black so the player can't walk or
-    /// look while blind. All game access is guarded - if a system is missing the step is simply skipped.
+    /// Short "repair" cinematic for the Marco RV repair: a deliberate hard CUT (the game's BlackOverlay, no eyelids -
+    /// it should read as a jump-cut in time, not the player blinking), holding ~2.5s while a bundled repair sound
+    /// plays AND the RV is swapped (hidden behind the black), then fade back and run a completion line. Movement +
+    /// camera are locked during the black. The fade / hold / input-lock / guaranteed-restore all come from the shared
+    /// <see cref="DooDesch.Transition.ScreenTransition"/> primitive; only the bundled sound is RV-specific.
     /// </summary>
     internal static class RepairCinematic
     {
         private const float FadeTime = 0.6f;
-        private const float HoldTime = 2.5f;
-        private const float MidHoldDelay = 1.25f;  // Marco grunts here - lands in the WAV's built-in quiet gap (~1.05-1.70s)
+        private const float HoldTime = 2.5f;       // OnMidHold fires at the midpoint (~1.25s) - inside the WAV's quiet gap (~1.05-1.70s)
         private const float SoundVolume = 0.2f;    // repair clanks sit UNDER Marco's voice (tune to taste)
+
+        private const string Key = "RV.Repair";
 
         private static UnityEngine.AudioClip _clip;
         private static bool _clipTried;
 
         /// <summary>
         /// Run the cinematic. <paramref name="onMidHold"/> fires partway through the black hold (e.g. Marco
-        /// grunting), <paramref name="doWhileBlack"/> at the end of the hold, <paramref name="onDone"/> after fade-back.
+        /// grunting), <paramref name="doWhileBlack"/> at full black (swap the RV, hidden), <paramref name="onDone"/>
+        /// after fade-back (Marco's completion line).
         /// </summary>
         internal static void Play(Action doWhileBlack, Action onDone, Action onMidHold = null)
         {
-            MelonCoroutines.Start(Run(doWhileBlack, onDone, onMidHold));
+            ScreenTransition.Play(new TransitionRequest
+            {
+                Mechanism = VeilMode.Black,        // deliberate hard cut - no eyelids
+                CloseSeconds = FadeTime,
+                OpenSeconds = FadeTime,
+                HoldSeconds = HoldTime,
+                LockMovement = true,               // the overlay is purely visual; freeze the player so they can't walk/look blind
+                LockCamera = true,
+                DuringBlack = () => { PlaySound(); Safe(doWhileBlack); },  // repair clanks + RV swap, hidden behind the black
+                OnMidHold = onMidHold,             // Marco grunts / hurts himself mid-repair (~1.25s)
+                OnDone = onDone,                   // Marco's completion line
+                Key = Key,
+            });
         }
 
         /// <summary>Defensive un-black + input restore (call on scene load so an interrupted cinematic can't strand the player).</summary>
-        internal static void ForceReset()
-        {
-            Fade(false);
-            LockInput(false);
-        }
+        internal static void ForceReset() => ScreenTransition.ForceReset(Key);
 
-        private static IEnumerator Run(Action doWhileBlack, Action onDone, Action onMidHold)
-        {
-            try
-            {
-                LockInput(true);
-                Fade(true);
-                yield return new UnityEngine.WaitForSeconds(FadeTime);   // fully black
-
-                PlaySound();                                            // repair clanks start
-                yield return new UnityEngine.WaitForSeconds(MidHoldDelay);
-                Safe(onMidHold);                                        // Marco grunts / hurts himself mid-repair
-                yield return new UnityEngine.WaitForSeconds(HoldTime - MidHoldDelay);
-
-                Safe(doWhileBlack);                                      // swap the RV while it's hidden
-
-                Fade(false);
-                yield return new UnityEngine.WaitForSeconds(FadeTime);   // back to normal
-                Safe(onDone);                                            // Marco's completion line
-            }
-            finally
-            {
-                // Never leave the player frozen or the screen stuck black, even on an exception mid-fade.
-                Fade(false);
-                LockInput(false);
-            }
-        }
-
-        // --- screen fade (game BlackOverlay singleton, HUD overlay as fallback) ---
-        private static void Fade(bool toBlack)
-        {
-            try
-            {
-                if (Singleton<BlackOverlay>.InstanceExists)
-                {
-                    BlackOverlay bo = Singleton<BlackOverlay>.Instance;
-                    if (toBlack) bo.Open(FadeTime); else bo.Close(FadeTime);
-                    return;
-                }
-                if (Singleton<HUD>.InstanceExists)
-                    Singleton<HUD>.Instance.SetBlackOverlayVisible(toBlack, FadeTime);
-            }
-            catch (Exception e) { Core.Log.Warning("[Cinematic] fade failed: " + e.Message); }
-        }
-
-        // --- input lock (the overlay is purely visual and does NOT freeze the player) ---
-        private static void LockInput(bool locked)
-        {
-            try { var pm = PlayerSingleton<PlayerMovement>.Instance; if (pm != null) pm.CanMove = !locked; } catch { }
-            try { var pc = PlayerSingleton<PlayerCamera>.Instance; if (pc != null) pc.SetCanLook(!locked); } catch { }
-        }
-
-        // --- bundled repair sound ---
+        // --- bundled repair sound (RV-specific; not part of the shared primitive) ---
         private static void PlaySound()
         {
             try
