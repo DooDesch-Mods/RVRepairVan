@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using DooDesch.Localization;
 using MelonLoader;
 using RVRepairVan.Config;
 using RVRepairVan.Managers;
@@ -249,7 +250,7 @@ namespace RVRepairVan.Quests
             if (Stage != Paid) return;
             Stage = Done;
             RepairQuest.CompleteIfActive();
-            WorldSay(_marcoT, "There she is. Standing again. Interior's your problem. Try not to piss off whoever torched it the first time.");
+            WorldSay(_marcoT, L10n.T("There she is. Standing again. Interior's your problem. Try not to piss off whoever torched it the first time."));
             Core.Log.Msg("[Questline] quest complete (RV checked).");
         }
 
@@ -300,7 +301,7 @@ namespace RVRepairVan.Quests
                 if (withCinematic)
                     RVRepairVan.Effects.RepairCinematic.Play(
                         () => commit(),
-                        () => WorldSay(_marcoT, "There she is - back from the dead. Go take a look, and try not to total her again."),
+                        () => WorldSay(_marcoT, L10n.T("There she is - back from the dead. Go take a look, and try not to total her again.")),
                         () => GruntNpc(FindNpc(MarcoId)));
                 else
                     commit();   // a client acted; do it now and let our broadcast swap their RV during their cinematic

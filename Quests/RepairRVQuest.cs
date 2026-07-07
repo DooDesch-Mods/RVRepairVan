@@ -1,5 +1,6 @@
 using System;
 using System.Reflection;
+using DooDesch.Localization;
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using RVRepairVan.Managers;
 using S1API.Quests;
@@ -19,7 +20,7 @@ namespace RVRepairVan.Quests
         protected override string Title => RepairQuest.Title;
 
         protected override string Description =>
-            "Your RV's wrecked. Someone in Hyland Point has to know a guy.";
+            L10n.T("Your RV's wrecked. Someone in Hyland Point has to know a guy.");
 
         protected override bool AutoBegin => true;
 
@@ -65,7 +66,7 @@ namespace RVRepairVan.Quests
             {
                 // Initial objective = the first real step (NOT the same text as the quest title, or the
                 // journal shows it twice). The questline immediately re-syncs this to the current stage.
-                QuestEntry entry = AddEntry("Ask the motel manager about the RV");
+                QuestEntry entry = AddEntry(L10n.T("Ask the motel manager about the RV"));
 
                 // The game's QuestEntry.Start() registers a compass element from PoILocation. S1API leaves
                 // PoILocation null, and on this build (0.4.5f2) CompassManager then dereferences null every

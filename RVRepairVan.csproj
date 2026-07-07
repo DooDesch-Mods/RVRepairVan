@@ -68,6 +68,10 @@
        backend-gated; MUST come AFTER the Workspace Remove above so CI does not strip the included files. -->
   <Import Project="$(MSBuildThisFileDirectory)../Workspace/build/ScreenTransition.props" Condition="Exists('$(MSBuildThisFileDirectory)../Workspace/build/ScreenTransition.props')" />
 
+  <!-- Shared gettext-style localization (DooDesch.Localization.L10n). Linked source, internal class,
+       backend-agnostic; same AFTER-the-Remove rule as above. -->
+  <Import Project="$(MSBuildThisFileDirectory)../Workspace/build/L10n.props" Condition="Exists('$(MSBuildThisFileDirectory)../Workspace/build/L10n.props')" />
+
   <!-- Mod loader references (both backends) -->
   <ItemGroup>
     <Reference Include="MelonLoader">

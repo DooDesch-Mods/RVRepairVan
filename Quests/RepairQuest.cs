@@ -1,4 +1,5 @@
 using System;
+using DooDesch.Localization;
 using S1API.Quests;
 
 namespace RVRepairVan.Quests
@@ -11,7 +12,9 @@ namespace RVRepairVan.Quests
     /// </summary>
     internal static class RepairQuest
     {
-        internal const string Title = "Back on the Road";
+        // Localized once at first use; every lookup (GetQuestByName) goes through this same field,
+        // so create/find/complete stay consistent within a session regardless of language.
+        internal static readonly string Title = L10n.T("Back on the Road");
 
         internal static bool IsActive()
         {

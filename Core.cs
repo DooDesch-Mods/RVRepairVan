@@ -32,6 +32,7 @@ namespace RVRepairVan
             Log = LoggerInstance;
 
             RVRepairVanPreferences.Initialize();
+            Localization.German.Register();   // before any L10n.T use (quest title, dialogue, items)
             HarmonyInstance.PatchAll();
             RVRepairVan.Net.NetworkBus.Init(HarmonyInstance);   // co-op sync (host-authoritative; no-op offline)
 

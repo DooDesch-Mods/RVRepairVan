@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using DooDesch.Localization;
 using Il2CppInterop.Runtime;
 using RVRepairVan.Config;
 using RVRepairVan.Managers;
@@ -144,7 +145,7 @@ namespace RVRepairVan.Dialogue
 
         private static string BuildChoiceText()
         {
-            return "Repair my RV (" + MoneyManager.FormatAmount(RVRepairVanPreferences.RepairPrice) + ")";
+            return L10n.T("Repair my RV ({0})", MoneyManager.FormatAmount(RVRepairVanPreferences.RepairPrice));
         }
 
         // Floating worldspace bubble at Marco (his completion line after the repair cinematic).
@@ -190,7 +191,7 @@ namespace RVRepairVan.Dialogue
                     NetworkBus.SendToHost(RvOp.PayRepair);
                     RVRepairVan.Effects.RepairCinematic.Play(
                         null,
-                        () => WorldSay(marco, "There she is - back from the dead. Try not to total her again."),
+                        () => WorldSay(marco, L10n.T("There she is - back from the dead. Try not to total her again.")),
                         () => Questline.GruntNpc(marco));
                     return;
                 }
@@ -212,7 +213,7 @@ namespace RVRepairVan.Dialogue
                             Core.Log.Msg("[Marco] RV repaired for " + MoneyManager.FormatAmount(paid) + ".");
                         }
                     },
-                    () => WorldSay(marco, "There she is - back from the dead. Try not to total her again."),
+                    () => WorldSay(marco, L10n.T("There she is - back from the dead. Try not to total her again.")),
                     () => Questline.GruntNpc(marco));   // mid-repair: Marco hurts himself
             }
             catch (Exception e)
