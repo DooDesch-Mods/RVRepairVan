@@ -65,12 +65,15 @@
   </ItemGroup>
 
   <!-- Shared "eyes close -> act -> open" transition primitive (DooDesch.Transition). Linked source, self-contained
-       backend-gated; MUST come AFTER the Workspace Remove above so CI does not strip the included files. -->
-  <Import Project="$(MSBuildThisFileDirectory)../Workspace/build/ScreenTransition.props" Condition="Exists('$(MSBuildThisFileDirectory)../Workspace/build/ScreenTransition.props')" />
+       backend-gated; MUST come AFTER the Workspace Remove above so CI does not strip the included files.
+       Resolved via $(WorkspaceLibPath)/.. so the SAME line works locally (Workspace = sibling folder) and in
+       CI (Workspace = subfolder checkout, WorkspaceLibPath passed via /p:) - a plain ../Workspace path would
+       silently skip the import in CI and fail the build with missing DooDesch.* types. -->
+  <Import Project="$(WorkspaceLibPath)/../build/ScreenTransition.props" Condition="Exists('$(WorkspaceLibPath)/../build/ScreenTransition.props')" />
 
   <!-- Shared gettext-style localization (DooDesch.Localization.L10n). Linked source, internal class,
-       backend-agnostic; same AFTER-the-Remove rule as above. -->
-  <Import Project="$(MSBuildThisFileDirectory)../Workspace/build/L10n.props" Condition="Exists('$(MSBuildThisFileDirectory)../Workspace/build/L10n.props')" />
+       backend-agnostic; same AFTER-the-Remove and path-resolution rules as above. -->
+  <Import Project="$(WorkspaceLibPath)/../build/L10n.props" Condition="Exists('$(WorkspaceLibPath)/../build/L10n.props')" />
 
   <!-- Mod loader references (both backends) -->
   <ItemGroup>
