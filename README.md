@@ -7,7 +7,7 @@
 > errands, referral haggling, and a little repair cinematic at the end. Built on
 > [S1API](https://github.com/ifBars/S1API).
 
-![Version](https://img.shields.io/badge/version-2.3.0-blue)
+![Version](https://img.shields.io/badge/version-2.4.0-blue)
 ![Game](https://img.shields.io/badge/game-Schedule%20I-purple)
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3+-green)
 ![S1API](https://img.shields.io/badge/S1API-required-orange)
@@ -36,9 +36,10 @@
   flat repair price, and get the cinematic.
 - **Configurable** prices and discounts, read live - change them in settings and Marco's
   offer updates without a restart.
-- **English and German.** The questline picks German automatically on a German system
-  (the game has no language setting of its own), English everywhere else. You can force
-  a language with the shared `Language` setting - see Configuration.
+- **English and German - and your language.** The questline picks German automatically
+  on a German system (the game has no language setting of its own), English everywhere
+  else, and you can add or fix translations yourself with a simple JSON file - no
+  modding needed. See Configuration.
 
 ## Requirements
 
@@ -83,7 +84,15 @@ translations read the same value):
 
 | Setting | Default | What it does |
 |---|---|---|
-| `Language` | `auto` | `auto` = follow the OS language (German -> German, otherwise English), or force `en` / `de`. Takes effect after a restart. |
+| `Language` | `auto` | `auto` = follow the OS language (German -> German, otherwise English), or force a code like `en` / `de` / `fr`. Takes effect after a restart. |
+
+### Add your own translation
+
+Want the quest in a language the mod doesn't ship, or prefer different wording? After
+one game start you'll find `UserData/DooDesch/Localization/RVRepairVan/_template.en.json`
+listing every translatable line. Copy it, rename the copy to your language code (e.g.
+`fr.json`), translate the values, restart. Your file wins over the built-in texts.
+Step-by-step guide: the [ScheduleOne-L10n wiki](https://github.com/DooDesch-Mods/ScheduleOne-L10n/wiki).
 
 Debug-only toggles (Destroy RV, Add $10,000, Dump state, Play repair cinematic) exist only
 in development builds and are not shipped in the release.

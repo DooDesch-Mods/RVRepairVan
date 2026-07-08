@@ -4,6 +4,21 @@ All notable changes to RVRepairVan are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [2.4.0] - 2026-07-08
+
+### Added
+- Bring your own translation: the mod now also loads translation files from
+  `UserData/DooDesch/Localization/RVRepairVan/<language code>.json`. A few lines are
+  enough to fix wording you don't like, and a full file adds a whole language the mod
+  never shipped. Your entries always win over the built-in English/German.
+- To make that easy, the mod writes `_template.en.json` into that folder on startup,
+  listing every translatable string. Copy it, rename it to e.g. `fr.json`, translate
+  the values, restart - done. Full guide:
+  https://github.com/DooDesch-Mods/ScheduleOne-L10n/wiki
+- The localization layer now lives in its own open-source project,
+  [ScheduleOne-L10n](https://github.com/DooDesch-Mods/ScheduleOne-L10n), so other mods
+  can use the same system (and share the same `Language` setting).
+
 ## [2.3.0] - 2026-07-08
 
 ### Added
