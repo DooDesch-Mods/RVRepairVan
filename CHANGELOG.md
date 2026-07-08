@@ -4,6 +4,15 @@ All notable changes to RVRepairVan are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [2.6.0] - 2026-07-08
+
+### Added
+- The built-in translations are now always visible on disk: next to `_template.en.json`
+  the mod also writes one template per shipped language - e.g. `_template.de.json` with
+  the complete German text - into `UserData/DooDesch/Localization/RVRepairVan/`. Want to
+  tweak a line? Copy the template to `de.json`, keep the lines you change, done. The
+  templates refresh on every game start, so they always match the installed version.
+
 ## [2.5.0] - 2026-07-08
 
 ### Added

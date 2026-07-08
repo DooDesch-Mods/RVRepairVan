@@ -7,7 +7,7 @@
 > errands, referral haggling, and a little repair cinematic at the end. Built on
 > [S1API](https://github.com/ifBars/S1API).
 
-![Version](https://img.shields.io/badge/version-2.5.0-blue)
+![Version](https://img.shields.io/badge/version-2.6.0-blue)
 ![Game](https://img.shields.io/badge/game-Schedule%20I-purple)
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3+-green)
 ![S1API](https://img.shields.io/badge/S1API-required-orange)
@@ -89,9 +89,11 @@ translations read the same value):
 ### Add your own translation
 
 Want the quest in a language the mod doesn't ship, or prefer different wording? After
-one game start you'll find `UserData/DooDesch/Localization/RVRepairVan/_template.en.json`
-listing every translatable line. Copy it, rename the copy to your language code (e.g.
-`fr.json`), translate the values, restart. Your file wins over the built-in texts.
+one game start you'll find templates in `UserData/DooDesch/Localization/RVRepairVan/` -
+`_template.en.json` with every translatable line, plus one per shipped language (e.g.
+`_template.de.json` with the built-in German). Copy one, rename the copy to your
+language code (e.g. `fr.json`), translate or tweak the values, restart. Your file wins
+over the built-in texts.
 
 Translations can also be installed as their own mods (a code-less package shipping
 `Mods/Localization/RVRepairVan/<code>.json`) - and you can publish yours the same way.
