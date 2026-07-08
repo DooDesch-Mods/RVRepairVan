@@ -116,7 +116,7 @@ jobs:
             cp thunderstore/README.md release/README.md
           fi
 
-      - name: Create release ZIP
+      - name: Create release ZIP (Thunderstore + GitHub; flat layout with manifest/icon at root)
         run: zip -j "RVRepairVan_${{ steps.version-check.outputs.version }}.zip" release/*
 
       - name: Upload Release ZIP
@@ -124,6 +124,25 @@ jobs:
         with:
           name: RVRepairVan
           path: "RVRepairVan_${{ steps.version-check.outputs.version }}.zip"
+
+      # Nexus is installed through Vortex, whose Schedule 1 extension deploys relative to the game root and
+      # maps loose non-.md files at the archive root (manifest.json, icon.png) to a bare "mods" path - which
+      # lands a FILE named "mods" in the game folder, replacing the real Mods DIRECTORY and wiping other mods.
+      # So Nexus gets its own archive: the DLL under a mods/ folder, and none of the Thunderstore-only files.
+      - name: Create Nexus/Vortex ZIP (payload under mods/ so the Schedule 1 Vortex extension installs cleanly)
+        run: |
+          mkdir -p nexus/mods
+          cp release/RVRepairVan.dll nexus/mods/
+          for f in README.md CHANGELOG.md LICENSE.md; do
+            [ -f "release/$f" ] && cp "release/$f" nexus/ || true
+          done
+          (cd nexus && zip -r "../RVRepairVan_${{ steps.version-check.outputs.version }}_nexus.zip" .)
+
+      - name: Upload Nexus ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: RVRepairVan-nexus
+          path: "RVRepairVan_${{ steps.version-check.outputs.version }}_nexus.zip"
 
   release:
     needs: build
@@ -188,17 +207,17 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Download built ZIP
+      - name: Download Nexus ZIP
         uses: actions/download-artifact@v4
         with:
-          name: RVRepairVan
+          name: RVRepairVan-nexus
 
       - name: Upload to Nexus Mods
         uses: Nexus-Mods/upload-action@v1.0.0-beta.7
         with:
           api_key: ${{ secrets.NEXUSMODS_API_KEY }}
           file_group_id: "831565"
-          filename: "RVRepairVan_${{ needs.build.outputs.version }}.zip"
+          filename: "RVRepairVan_${{ needs.build.outputs.version }}_nexus.zip"
           version: ${{ needs.build.outputs.version }}
           display_name: "RVRepairVan ${{ needs.build.outputs.version }}"
           description: ${{ needs.build.outputs.notes_bbcode }}
