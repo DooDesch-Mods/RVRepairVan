@@ -7,7 +7,7 @@
 > errands, referral haggling, and a little repair cinematic at the end. Built on
 > [S1API](https://github.com/ifBars/S1API).
 
-![Version](https://img.shields.io/badge/version-2.2.1-blue)
+![Version](https://img.shields.io/badge/version-2.3.0-blue)
 ![Game](https://img.shields.io/badge/game-Schedule%20I-purple)
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3+-green)
 ![S1API](https://img.shields.io/badge/S1API-required-orange)
@@ -36,6 +36,9 @@
   flat repair price, and get the cinematic.
 - **Configurable** prices and discounts, read live - change them in settings and Marco's
   offer updates without a restart.
+- **English and German.** The questline picks German automatically on a German system
+  (the game has no language setting of its own), English everywhere else. You can force
+  a language with the shared `Language` setting - see Configuration.
 
 ## Requirements
 
@@ -74,6 +77,13 @@ Settings live in the **Mod Manager & Phone App** UI in-game, or in
 | `BasePriceWithReferral` | `10000` | Questline price after you drop Mrs. Ming's name. |
 | `MinSampleDiscount` | `100` | Smallest price cut a single packaged sample can give. |
 | `MaxSampleDiscount` | `500` | Largest price cut a single packaged sample can give. |
+
+The language lives in its own shared section (`DooDesch` - all DooDesch mods with
+translations read the same value):
+
+| Setting | Default | What it does |
+|---|---|---|
+| `Language` | `auto` | `auto` = follow the OS language (German -> German, otherwise English), or force `en` / `de`. Takes effect after a restart. |
 
 Debug-only toggles (Destroy RV, Add $10,000, Dump state, Play repair cinematic) exist only
 in development builds and are not shipped in the release.

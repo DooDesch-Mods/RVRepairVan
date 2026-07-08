@@ -4,6 +4,17 @@ All notable changes to RVRepairVan are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [2.3.0] - 2026-07-08
+
+### Added
+- German translation. The whole questline - journal entries, objectives, all of
+  Donna's/Mrs. Ming's/Marco's dialogue and the quest items - is now available in German.
+- Automatic language pick: German systems get German, everything else gets English
+  (the game itself has no language setting, so the OS language decides).
+- A shared `Language` setting (under `DooDesch` in `MelonPreferences.cfg` / the Mod
+  Manager UI) to force a language: `auto`, `en` or `de`. Other DooDesch mods will use
+  the same setting as they pick up translations.
+
 ## [2.2.1] - 2026-07-01
 
 ### Fixed
