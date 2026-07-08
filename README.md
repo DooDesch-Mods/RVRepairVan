@@ -7,7 +7,7 @@
 > errands, referral haggling, and a little repair cinematic at the end. Built on
 > [S1API](https://github.com/ifBars/S1API).
 
-![Version](https://img.shields.io/badge/version-2.4.0-blue)
+![Version](https://img.shields.io/badge/version-2.5.0-blue)
 ![Game](https://img.shields.io/badge/game-Schedule%20I-purple)
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3+-green)
 ![S1API](https://img.shields.io/badge/S1API-required-orange)
@@ -92,7 +92,10 @@ Want the quest in a language the mod doesn't ship, or prefer different wording? 
 one game start you'll find `UserData/DooDesch/Localization/RVRepairVan/_template.en.json`
 listing every translatable line. Copy it, rename the copy to your language code (e.g.
 `fr.json`), translate the values, restart. Your file wins over the built-in texts.
-Step-by-step guide: the [ScheduleOne-L10n wiki](https://github.com/DooDesch-Mods/ScheduleOne-L10n/wiki).
+
+Translations can also be installed as their own mods (a code-less package shipping
+`Mods/Localization/RVRepairVan/<code>.json`) - and you can publish yours the same way.
+Step-by-step guides: the [ScheduleOne-L10n wiki](https://github.com/DooDesch-Mods/ScheduleOne-L10n/wiki).
 
 Debug-only toggles (Destroy RV, Add $10,000, Dump state, Play repair cinematic) exist only
 in development builds and are not shipped in the release.

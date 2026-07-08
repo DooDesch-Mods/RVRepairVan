@@ -7,7 +7,7 @@ using RVRepairVan.Managers;
 using RVRepairVan.Persistence;
 using RVRepairVan.Quests;
 
-[assembly: MelonInfo(typeof(RVRepairVan.Core), "RVRepairVan", "2.4.0", "DooDesch", "https://github.com/DooDesch-Mods/RVRepairVan")]
+[assembly: MelonInfo(typeof(RVRepairVan.Core), "RVRepairVan", "2.5.0", "DooDesch", "https://github.com/DooDesch-Mods/RVRepairVan")]
 [assembly: MelonGame("TVGS", "Schedule I")]
 
 namespace RVRepairVan
