@@ -1,6 +1,6 @@
 # RVRepairVan - Get Your RV Back on the Road
 
-> 🛟 **Need help or found a bug?** Get support at [support.doodesch.de](https://support.doodesch.de).
+> 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/rvrepairvan](https://support.doodesch.de/rvrepairvan).
 
 > Your RV got blown up in the intro? Now you can actually fix it. A proper tracked side
 > quest sends you from the motel manager to Mrs. Ming to Marco the mechanic, with real
