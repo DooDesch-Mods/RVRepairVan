@@ -213,13 +213,16 @@ jobs:
           name: RVRepairVan-nexus
 
       - name: Upload to Nexus Mods
-        uses: Nexus-Mods/upload-action@v1.0.0-beta.7
+        uses: Nexus-Mods/upload-action@v1.0.0-beta.9
         with:
           api_key: ${{ secrets.NEXUSMODS_API_KEY }}
-          file_group_id: "831565"
+          file_id: "831565"
           filename: "RVRepairVan_${{ needs.build.outputs.version }}_nexus.zip"
           version: ${{ needs.build.outputs.version }}
           display_name: "RVRepairVan ${{ needs.build.outputs.version }}"
           description: ${{ needs.build.outputs.notes_bbcode }}
-          file_category: main
-          archive_existing_file: true
+          category: main
+          archive_existing_version: true
+          update_mod_version: true
+          primary_mod_manager_download: true
+          allow_mod_manager_download: true
