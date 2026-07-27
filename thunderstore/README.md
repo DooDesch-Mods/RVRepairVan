@@ -32,13 +32,12 @@
 
 - **Schedule I** `0.4.5f2` (IL2CPP) with **MelonLoader 0.7.3+**.
 - **S1API** (pulled in as a dependency).
-- Optional: **Mod Manager & Phone App** for the in-game settings UI.
 
 ## Settings
 
 `Enabled`, `QuestMode` (Questline / Simple), `RepairPrice` (1500, Simple + floor),
 `BasePriceNoReferral` (50000), `BasePriceWithReferral` (10000), `MinSampleDiscount` (100),
-`MaxSampleDiscount` (500). Editable in the Mod Manager & Phone App UI or
+`MaxSampleDiscount` (500). Editable in
 `UserData/MelonPreferences.cfg`.
 
 ## License

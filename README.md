@@ -48,7 +48,6 @@
 | Schedule I | `0.4.5f2` (IL2CPP, current Steam public build) |
 | MelonLoader | `0.7.3+` |
 | S1API | [ifBars/S1API_Forked](https://thunderstore.io/c/schedule-i/p/ifBars/S1API_Forked/) (dialogue, items, dead drops, money, save system) |
-| Mod Manager & Phone App | [Prowiler, Nexus mods/397](https://www.nexusmods.com/schedule1/mods/397) - optional, for the in-game settings UI |
 
 ## Installation
 
@@ -62,11 +61,10 @@ dependencies (MelonLoader, S1API) are pulled in automatically.
 1. Install **MelonLoader 0.7.3** for Schedule I.
 2. Install **S1API** (its DLLs go in `Mods/` and `Plugins/` per its own instructions).
 3. Drop **`RVRepairVan.dll`** into your Schedule I `Mods/` folder.
-4. (Optional) Install **Mod Manager & Phone App** for the in-game settings UI.
 
 ## Configuration
 
-Settings live in the **Mod Manager & Phone App** UI in-game, or in
+Settings live in
 `UserData/MelonPreferences.cfg` under `RVRepairVan_01_Main`.
 
 | Setting | Default | What it does |
@@ -124,7 +122,6 @@ Prefer no story? Set `QuestMode = Simple` and just pay Marco directly.
 
 - **DooDesch** - mod author.
 - **[ifBars/S1API](https://github.com/ifBars/S1API)** - the modding API this is built on.
-- **Prowiler** - Mod Manager & Phone App (in-game settings UI).
 
 ## License
 
