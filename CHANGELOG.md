@@ -4,6 +4,12 @@ All notable changes to RVRepairVan are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [2.6.1] - 2026-08-01
+
+### Changed
+- Runs on Schedule I 0.4.6f11.
+- Needs S1API 3.1.1, up from 3.0.5. Update it along with the mod.
+
 ## [2.6.0] - 2026-07-08
 
 ### Added
