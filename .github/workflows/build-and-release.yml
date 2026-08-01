@@ -226,7 +226,7 @@ jobs:
           path: thunderstore-package
           deps: |
             LavaGang-MelonLoader-0.7.3
-            ifBars-S1API_Forked-3.0.5
+            ifBars-S1API_Forked-3.1.1
           categories: |
             Mods
 
