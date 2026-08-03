@@ -132,6 +132,11 @@
       <HintPath>$(GameManagedPath)/UnityEngine.AudioModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <!-- NavMesh sampling: needed to tell whether the RV interior is walkable for employees -->
+    <Reference Include="UnityEngine.AIModule">
+      <HintPath>$(GameManagedPath)/UnityEngine.AIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
   </ItemGroup>
 
   <!-- Bundled assets, embedded so they ship inside the DLL - no extra files. -->

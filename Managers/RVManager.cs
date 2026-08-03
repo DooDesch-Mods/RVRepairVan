@@ -22,6 +22,9 @@ namespace RVRepairVan.Managers
 
         internal static bool IsReady => _root != null && _rv != null;
 
+        /// <summary>The RV root transform (@Properties/RV), or null. Locates on demand.</summary>
+        internal static Transform Root => TryLocate() ? _root : null;
+
         /// <summary>World position of the RV (used as a quest-marker fallback). Never throws.</summary>
         internal static bool TryGetPosition(out Vector3 position)
         {

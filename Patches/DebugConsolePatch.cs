@@ -45,7 +45,7 @@ namespace RVRepairVan.Patches
             if (parts.Length == 0) return false;
             string cmd = parts[0].ToLower();
             if (cmd != "rvtest" && cmd != "rvstage" && cmd != "rvdrops" && cmd != "rvclear"
-                && cmd != "rvgiveclient" && cmd != "rvdiag" && cmd != "rvreinject")
+                && cmd != "rvgiveclient" && cmd != "rvdiag" && cmd != "rvreinject" && cmd != "rvprobe")
                 return false;   // not ours - let the game handle it
 
             // Both overloads can fire for a single submission (the string body calls the List body), so run the
@@ -75,6 +75,9 @@ namespace RVRepairVan.Patches
                         break;
                     case "rvdiag":    // dump the quest gate + every injected dialogue choice
                         RVRepairVan.Quests.Questline.DebugDiag();
+                        break;
+                    case "rvprobe":   // measure the RV property: idle points, capacity, docks, grids, NavMesh
+                        RvProbe.Run();
                         break;
                     case "rvreinject":   // 'rvreinject degraded' exercises the no-container fallback (adds duplicates)
                         RVRepairVan.Quests.Questline.DebugReinject(parts.Length > 1 && parts[1].ToLower() == "degraded");
