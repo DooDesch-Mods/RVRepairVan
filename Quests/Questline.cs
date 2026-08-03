@@ -44,6 +44,10 @@ namespace RVRepairVan.Quests
         private const string MarcoPaid  = "Good. Mess like that gets forgotten when the cash shows up. Bring me some of that good stuff now and then, and I'll keep shaving down the bill.";
         private const string MarcoShort = "Clock's running. Come back with it.";
 
+        // Attempts (2s each during the fast burst) an NPC's dialogue containers get to build before we inject the
+        // fallback version instead. ~30s covers a slow scene load without leaving the player waiting on a dead NPC.
+        private const int DEGRADED_AFTER_ATTEMPTS = 15;
+
         // Transient per-scene state.
         private static bool _donnaDone, _mingDone, _marcoDone;   // dialogue injected per NPC (independent)
         private static bool _pickupActive;       // Marco's trust pickup started
@@ -58,6 +62,12 @@ namespace RVRepairVan.Quests
         private static int _gen;                 // scene generation - stops stale coroutines after a reload
 
         private static Transform _donnaT, _mingT, _marcoT;
+        private static DialogueController _donnaDC, _mingDC, _marcoDC;   // kept for the rvdiag dump
+        private static int _injectedChoices, _skippedChoices;   // AddChoice bookkeeping, reported by rvdiag
+#if DEBUG
+        private static bool _injectedDegraded;         // an NPC had to be injected without its dialogue containers
+        private static bool _debugForceNoContainers;   // rvreinject: pretend S1API handed us nothing
+#endif
         private static DialogueController.DialogueChoice _marcoRepairChoice;
 
         // Sample picker: one Marco dialogue choice per packaged product the player holds (so they choose WHICH to
@@ -145,6 +155,11 @@ namespace RVRepairVan.Quests
             _dropPoint = Vector3.zero;
             _cratePoint = Vector3.zero;
             _donnaT = _mingT = _marcoT = null;
+            _donnaDC = _mingDC = _marcoDC = null;
+            _injectedChoices = _skippedChoices = 0;
+#if DEBUG
+            _injectedDegraded = false;
+#endif
             _marcoRepairChoice = null;
             System.Array.Clear(_sampleChoices, 0, _sampleChoices.Length);
             _sampleSlots.Clear();
@@ -195,6 +210,68 @@ namespace RVRepairVan.Quests
             _dropPoint = Vector3.zero; _drop = null;
             Core.Log.Msg("[Debug] errand drop reservation reset.");
         }
+
+        // Debug: force a second injection pass, optionally in degraded mode, so the fallback path (the one that runs
+        // when S1API never hands us a dialogue container) can be exercised on demand. The existing choices stay, so
+        // the NPC ends up with duplicates - this is a test command, not a repair.
+        internal static void DebugReinject(bool degraded)
+        {
+            _donnaDone = _mingDone = _marcoDone = false;
+            // Degraded only means something when the containers are actually missing, which cannot be provoked from
+            // outside - so suppress them for this one pass and let the fallback branches run for real.
+            _debugForceNoContainers = degraded;
+            try { TryInject(degraded); }
+            finally { _debugForceNoContainers = false; }
+            Core.Log.Msg("[Debug] rvreinject degraded=" + degraded + " -> Donna=" + _donnaDone
+                + " Ming=" + _mingDone + " Marco=" + _marcoDone
+                + " choices=" + _injectedChoices + " skippedDead=" + _skippedChoices);
+        }
+
+        // Debug: one-shot state dump. Answers the two questions player reports keep raising - "the quest never
+        // starts" (the gate) and "clicking the choice does nothing" (a choice with neither a Conversation nor an
+        // action is a dead click, which is exactly what a missing dialogue container used to produce).
+        internal static void DebugDiag()
+        {
+            try
+            {
+                Core.Log.Msg("[Debug] rvdiag ---------------------------------------------");
+                Core.Log.Msg("  questline=" + RVRepairVanPreferences.QuestlineEnabled + " enabled=" + RVRepairVanPreferences.Enabled
+                    + " online=" + NetworkBus.Online + " host=" + NetworkBus.IsServer);
+                Core.Log.Msg("  stage=" + Stage + " active=" + Active + " repaired=" + RepairStateStore.GetRepaired()
+                    + " rvDestroyed=" + RVManager.IsDestroyed() + " explosionBeat=" + ExplosionBeatPassed());
+                Core.Log.Msg("  price=" + CurrentPrice() + " samples=" + Samples + " discount=" + DiscountTotal);
+                Core.Log.Msg("  saveLoaded=" + Persistence.RepairSave.Loaded + " itemsRegistered=" + _itemsRegistered);
+                Core.Log.Msg("  crateDrop=" + (_crateDrop != null ? _crateDrop.Name : "<none>") + " placed=" + _cratePlaced
+                    + " | pkgDrop=" + (_drop != null ? _drop.Name : "<none>") + " placed=" + _pkgPlaced);
+                Core.Log.Msg("  injected: Donna=" + _donnaDone + " Ming=" + _mingDone + " Marco=" + _marcoDone
+                    + " degraded=" + _injectedDegraded
+                    + " choices=" + _injectedChoices + " skippedDead=" + _skippedChoices);
+                DumpChoices("Donna", _donnaDC);
+                DumpChoices("Ming", _mingDC);
+                DumpChoices("Marco", _marcoDC);
+                Core.Log.Msg("[Debug] rvdiag ---------------------------------------------");
+            }
+            catch (Exception e) { Core.Log.Warning("[Debug] rvdiag failed: " + e.Message); }
+        }
+
+        // Reads the choices back off the live DialogueController (not our own bookkeeping) so the dump shows what
+        // the game actually has - including anything another mod added to the same NPC.
+        private static void DumpChoices(string who, DialogueController dc)
+        {
+            if (dc == null) { Core.Log.Msg("  " + who + ": no DialogueController."); return; }
+            var list = dc.Choices;
+            if (list == null) { Core.Log.Msg("  " + who + ": Choices list null."); return; }
+            Core.Log.Msg("  " + who + ": " + list.Count + " choice(s)");
+            for (int i = 0; i < list.Count; i++)
+            {
+                var c = list[i];
+                if (c == null) continue;
+                // Runtime AddListener calls are invisible from here (only serialized listeners are countable), so this
+                // dump shows structure only - whether a choice actually does something is enforced in AddChoice.
+                Core.Log.Msg("    [" + i + "] '" + c.ChoiceText + "' enabled=" + c.Enabled
+                    + " conv=" + (c.Conversation != null) + " onChoosen=" + (c.onChoosen != null));
+            }
+        }
 #endif
 
         /// <summary>After a save loads, re-create + re-sync the journal quest at the stored stage.</summary>
@@ -218,7 +295,9 @@ namespace RVRepairVan.Quests
             {
                 yield return new WaitForSeconds(attempt < 20 ? 2f : 10f);
                 attempt++;
-                TryInject();
+                // Past the fast burst an NPC that is still missing has a real problem, not a timing one - inject in
+                // degraded mode so the player gets a working (if plainer) questline instead of choices that do nothing.
+                TryInject(degraded: attempt >= DEGRADED_AFTER_ATTEMPTS);
                 if (!reported && attempt >= 20)
                 {
                     reported = true;
@@ -247,14 +326,16 @@ namespace RVRepairVan.Quests
             }
         }
 
-        // Inject each NPC independently, looked up by id in the game's NPC registry.
-        private static void TryInject()
+        // Inject each NPC independently, looked up by id in the game's NPC registry. `degraded` is the last resort
+        // after the retry budget is spent: inject even though a dialogue container is missing, using direct actions
+        // instead of the sub-menus, so the questline stays playable rather than showing choices that do nothing.
+        private static void TryInject(bool degraded = false)
         {
             try
             {
-                if (!_donnaDone)  _donnaDone  = TryOne(DonnaId,  out _donnaT,  InjectDonna);
-                if (!_mingDone)   _mingDone   = TryOne(MingId,   out _mingT,   InjectMing);
-                if (!_marcoDone)  _marcoDone  = TryOne(MarcoId,  out _marcoT,  InjectMarco);
+                if (!_donnaDone)  _donnaDone  = TryOne(DonnaId,  out _donnaT,  ref _donnaDC, InjectDonna, degraded);
+                if (!_mingDone)   _mingDone   = TryOne(MingId,   out _mingT,   ref _mingDC,  InjectMing,  degraded);
+                if (!_marcoDone)  _marcoDone  = TryOne(MarcoId,  out _marcoT,  ref _marcoDC, InjectMarco, degraded);
             }
             catch (Exception e)
             {
@@ -262,27 +343,47 @@ namespace RVRepairVan.Quests
             }
         }
 
-        private static bool TryOne(string id, out Transform t, Action<DialogueController, NPC> inject)
+        private static bool TryOne(string id, out Transform t, ref DialogueController held,
+                                   Func<DialogueController, NPC, bool, bool> inject, bool degraded)
         {
             NPC n = FindNpc(id);
             DialogueController dc = ControllerOf(n, out t);
-            if (dc != null) { inject(dc, n); return true; }
+            // The controller can exist a moment before S1API's dialogue layer is ready, in which case the containers
+            // come back null. Returning false here keeps the NPC in the retry loop instead of injecting dead choices.
+            if (dc != null && inject(dc, n, degraded))
+            {
+                held = dc;
+                if (degraded)
+                {
+                    // Worth a warning in release logs too: it is the single line that explains why a player's
+                    // dialogue looks plainer than the wiki describes.
+                    Core.Log.Warning("[Questline] '" + id + "' injected WITHOUT its dialogue containers - the questline "
+                        + "works but replies show as floating lines instead of in-conversation menus.");
+#if DEBUG
+                    _injectedDegraded = true;
+#endif
+                }
+                return true;
+            }
 #if DEBUG
             DiagOnce(id, n);
 #endif
             return false;
         }
 
-        private static void InjectDonna(DialogueController donna, NPC npc)
+        private static bool InjectDonna(DialogueController donna, NPC npc, bool degraded)
         {
             var reply = S1Container(npc, "rv_donna", b => b
                 .AddNode("ENTRY", L10n.T("Do I look like a mechanic, sweetheart? Go ask Mrs. Ming over at the Chinese place. She knows people.")));
+            if (reply == null && !degraded) return false;   // retry rather than inject a choice without its reply
+
             AddChoice(donna, L10n.T("My RV got blown up. Know anyone who can fix it?"), 90,
                 () => Active && Stage == Started, OnAskDonna, reply);
-            Core.LogDebug("[Questline] Donna dialogue injected.");
+            Core.LogDebug("[Questline] Donna dialogue injected" + (degraded ? " (degraded)." : "."));
+            return true;
         }
 
-        private static void InjectMing(DialogueController ming, NPC npc)
+        private static bool InjectMing(DialogueController ming, NPC npc, bool degraded)
         {
             // The errand offer is an in-dialogue sub-menu (accept / not now), no cash involved.
             var offer = S1Container(npc, "rv_ming_offer", b => b
@@ -292,14 +393,9 @@ namespace RVRepairVan.Quests
                           .Add("MING_DEFER", L10n.T("Not right now."), "MING_DEFERRED"))
                 .AddNode("MING_ACCEPTED", L10n.T("Good. Pick it up, bring it here, and don't open it."))
                 .AddNode("MING_DEFERRED", L10n.T("Then your RV can stay where it is.")));
-            OnPick(npc, "MING_ACCEPT", OnAcceptErrand);
-            AddChoice(ming, L10n.T("Donna said you might know someone who can fix my RV."), 92,
-                () => Active && Stage == AskedDonna, null, offer);
 
             var deliver = S1Container(npc, "rv_ming_deliver", b => b
                 .AddNode("ENTRY", L10n.T("Good. Go see Marco at the body shop down by the docks. Tell him Mrs. Ming sent you.")));
-            AddChoice(ming, L10n.T("Here's your crate."), 91,
-                () => Active && Stage == MingCrate && PlayerHasItem(CrateId), OnDeliverCrate, deliver);
 
             // Loss fallback: collected the drop but no longer holding the crate -> admit it, pay the fee or defer.
             var lost = S1Container(npc, "rv_ming_lost", b => b
@@ -307,14 +403,53 @@ namespace RVRepairVan.Quests
                     c => c.Add("MING_PAY", L10n.T("Pay ${0}", LostPackageFee), null)
                           .Add("MING_DEFER_LOSS", L10n.T("I'll get the money."), "MING_LOSS_DEFER"))
                 .AddNode("MING_LOSS_DEFER", L10n.T(MingShort)));
+
+            if (!degraded && (offer == null || deliver == null || lost == null)) return false;
+
+            OnPick(npc, "MING_ACCEPT", OnAcceptErrand);
+            // Without its sub-menu this choice carries neither a Conversation nor an action, so picking it does
+            // nothing at all. Accept the errand straight away instead and say Ming's line in the world.
+            AddChoice(ming, L10n.T("Donna said you might know someone who can fix my RV."), 92,
+                () => Active && Stage == AskedDonna,
+                offer != null ? null : (Action)(() =>
+                {
+                    WorldSay(_mingT, L10n.T("Marco at the docks can fix almost anything. But favors move both ways. I have a crate waiting at a dead drop nearby. Bring it back, and I'll put in a word."));
+                    OnAcceptErrand();
+                }),
+                offer);
+
+            AddChoice(ming, L10n.T("Here's your crate."), 91,
+                () => Active && Stage == MingCrate && PlayerHasItem(CrateId), OnDeliverCrate, deliver);
+
             OnPick(npc, "MING_PAY", OnMingPayLoss);
-            AddChoice(ming, L10n.T("I lost your crate."), 90,
-                () => Active && Stage == MingCrate && !PlayerHasItem(CrateId), null, lost);
-            Core.LogDebug("[Questline] Ming dialogue injected.");
+            // Same dead-click risk as the offer: the fee is named in the label so paying directly is not a surprise.
+            AddChoice(ming,
+                lost != null ? L10n.T("I lost your crate.") : L10n.T("I lost your crate. (Pay ${0})", LostPackageFee), 90,
+                () => Active && Stage == MingCrate && !PlayerHasItem(CrateId),
+                lost != null ? null : (Action)(() => { WorldSay(_mingT, L10n.T(MingAngry)); OnMingPayLoss(); }),
+                lost);
+            Core.LogDebug("[Questline] Ming dialogue injected" + (degraded ? " (degraded)." : "."));
+            return true;
         }
 
-        private static void InjectMarco(DialogueController marco, NPC npc)
+        private static bool InjectMarco(DialogueController marco, NPC npc, bool degraded)
         {
+            // Build every container first: a choice whose only action is its Conversation is a dead click if the
+            // container is missing, so we would rather retry the whole injection than inject half of it.
+            var favourC = S1Container(npc, "rv_marco_favour", b => b
+                .AddNode("ENTRY", L10n.T("Maybe. I left a package at a dead drop nearby. Pick it up, bring it back, and don't make it weird.")));
+            var gotpkgC = S1Container(npc, "rv_marco_gotpkg", b => b
+                .AddNode("ENTRY", L10n.T("Good. You can follow instructions. Bring me some of that good stuff now and then, and I'll keep shaving down the bill.")));
+            var lostpkgC = S1Container(npc, "rv_marco_lost", b => b
+                .AddNode("ENTRY", L10n.T(MarcoAngry),
+                    c => c.Add("MARCO_PAY", L10n.T("Pay ${0}", LostPackageFee), null)
+                          .Add("MARCO_DEFER_LOSS", L10n.T("I'll get the money."), "MARCO_LOSS_DEFER"))
+                .AddNode("MARCO_LOSS_DEFER", L10n.T(MarcoShort)));
+            var bringInfoC = S1Container(npc, "rv_marco_bring", b => b
+                .AddNode("ENTRY", L10n.T("Bring me packaged product - sealed stuff, not raw. Every piece I take knocks its value off the bill, up to five hundred a pop, right down to my floor.")));
+
+            if (!degraded && (favourC == null || gotpkgC == null || lostpkgC == null || bringInfoC == null)) return false;
+
             // Greet / "fifty grand?" / referral / repair / sample carry a live price, a dynamic outcome, or are
             // pure flavour -> worldspace replies. The favour + package hand-off are static -> in-dialogue nodes.
             AddChoice(marco, L10n.T("Can you fix my RV?"), 100,
@@ -328,25 +463,20 @@ namespace RVRepairVan.Quests
             _marcoRepairChoice = AddChoice(marco, RepairChoiceText(), 97,
                 () => Active && MarcoGreeted && Stage < Paid, OnMarcoRepair);
 
-            var favour = S1Container(npc, "rv_marco_favour", b => b
-                .AddNode("ENTRY", L10n.T("Maybe. I left a package at a dead drop nearby. Pick it up, bring it back, and don't make it weird.")));
             AddChoice(marco, L10n.T("Anything I can do to bring the price down?"), 96,
-                () => Active && Stage == ReadyToPay && !_pickupActive, OnMarcoFavour, favour);
+                () => Active && Stage == ReadyToPay && !_pickupActive, OnMarcoFavour, favourC);
 
-            var gotpkg = S1Container(npc, "rv_marco_gotpkg", b => b
-                .AddNode("ENTRY", L10n.T("Good. You can follow instructions. Bring me some of that good stuff now and then, and I'll keep shaving down the bill.")));
             AddChoice(marco, L10n.T("Got your package."), 96,
-                () => Active && _pickupActive && _hasPackage && PlayerHasItem(PackageId), OnGotPackage, gotpkg);
+                () => Active && _pickupActive && _hasPackage && PlayerHasItem(PackageId), OnGotPackage, gotpkgC);
 
             // Loss fallback: collected the drop but no longer holding the package -> admit it, pay the fee or defer.
-            var lostpkg = S1Container(npc, "rv_marco_lost", b => b
-                .AddNode("ENTRY", L10n.T(MarcoAngry),
-                    c => c.Add("MARCO_PAY", L10n.T("Pay ${0}", LostPackageFee), null)
-                          .Add("MARCO_DEFER_LOSS", L10n.T("I'll get the money."), "MARCO_LOSS_DEFER"))
-                .AddNode("MARCO_LOSS_DEFER", L10n.T(MarcoShort)));
             OnPick(npc, "MARCO_PAY", OnMarcoPayLoss);
-            AddChoice(marco, L10n.T("I lost your package."), 96,
-                () => Active && _pickupActive && _hasPackage && !PlayerHasItem(PackageId), null, lostpkg);
+            // Without the sub-menu this choice would be a dead click - name the fee in the label and pay directly.
+            AddChoice(marco,
+                lostpkgC != null ? L10n.T("I lost your package.") : L10n.T("I lost your package. (Pay ${0})", LostPackageFee), 96,
+                () => Active && _pickupActive && _hasPackage && !PlayerHasItem(PackageId),
+                lostpkgC != null ? null : (Action)(() => { WorldSay(_marcoT, L10n.T(MarcoAngry)); OnMarcoPayLoss(); }),
+                lostpkgC);
 
             // One sample entry per packaged product the player holds, so they pick WHICH to hand over. Each entry is
             // shown live (SampleChoiceVisible) only while trust is earned (Stage >= Trusted) and the price is still
@@ -361,11 +491,12 @@ namespace RVRepairVan.Quests
             // Persistent reminder once trust is earned: tells players (who may have skipped the dialogue) HOW to
             // keep lowering the price. Shows whenever they're NOT currently holding product to hand over (when they
             // are, the "Give Marco a packaged sample" action is visible instead), until paid or the floor is hit.
-            var bringInfo = S1Container(npc, "rv_marco_bring", b => b
-                .AddNode("ENTRY", L10n.T("Bring me packaged product - sealed stuff, not raw. Every piece I take knocks its value off the bill, up to five hundred a pop, right down to my floor.")));
             AddChoice(marco, L10n.T("What can I bring to lower the price?"), 94,
-                () => Active && Trusted_ && Stage < Paid && !HoldingPackaged() && CurrentPrice() > RVRepairVanPreferences.RepairPrice, null, bringInfo);
-            Core.LogDebug("[Questline] Marco dialogue injected.");
+                () => Active && Trusted_ && Stage < Paid && !HoldingPackaged() && CurrentPrice() > RVRepairVanPreferences.RepairPrice,
+                bringInfoC != null ? null : (Action)(() => WorldSay(_marcoT, L10n.T("Bring me packaged product - sealed stuff, not raw. Every piece I take knocks its value off the bill, up to five hundred a pop, right down to my floor."))),
+                bringInfoC);
+            Core.LogDebug("[Questline] Marco dialogue injected" + (degraded ? " (degraded)." : "."));
+            return true;
         }
 
         // The game's own NPC registry, matched by id - the lookup S1API itself uses. Reliable where
@@ -426,15 +557,19 @@ namespace RVRepairVan.Quests
         {
             try
             {
-                if (npc == null) return null;
+#if DEBUG
+                if (_debugForceNoContainers) return null;
+#endif
+                if (npc == null) { Core.LogDebug("[Questline] container '" + name + "': npc null."); return null; }
                 var s1 = S1API.Entities.NPC.Get(npc.ID);
-                if (s1 == null) return null;
+                if (s1 == null) { Core.LogDebug("[Questline] container '" + name + "': S1API NPC '" + npc.ID + "' not ready."); return null; }
                 s1.Dialogue.BuildAndRegisterContainer(name, build);
                 DialogueHandler h = npc.DialogueHandler;
                 var list = h != null ? h.dialogueContainers : null;
-                if (list != null)
-                    for (int i = 0; i < list.Count; i++)
-                        if (list[i] != null && ((UnityEngine.Object)list[i]).name == name) return list[i];
+                if (list == null) { Core.LogDebug("[Questline] container '" + name + "': DialogueHandler not ready."); return null; }
+                for (int i = 0; i < list.Count; i++)
+                    if (list[i] != null && ((UnityEngine.Object)list[i]).name == name) return list[i];
+                Core.LogDebug("[Questline] container '" + name + "': built but not found among " + list.Count + " containers.");
             }
             catch (Exception e) { Core.Log.Warning("[Questline] S1 container '" + name + "' failed: " + e.Message); }
             return null;
@@ -1202,6 +1337,17 @@ namespace RVRepairVan.Quests
         // (NPC reply + any sub-choices, UI stays open). onChosen is the optional state action.
         private static DialogueController.DialogueChoice AddChoice(DialogueController dc, string text, int prio, Func<bool> show, Action onChosen, DialogueContainer conv = null)
         {
+            // A choice with neither a reply container nor an action does nothing when picked - the player clicks and
+            // the conversation just sits there. That is what a missing S1API container used to produce, so refuse it
+            // outright rather than shipping a dead option.
+            if (conv == null && onChosen == null)
+            {
+                _skippedChoices++;
+                Core.Log.Warning("[Questline] skipped a choice with neither reply nor action: '" + text + "'");
+                return null;
+            }
+            _injectedChoices++;
+
             var choice = new DialogueController.DialogueChoice
             {
                 Enabled = true,
