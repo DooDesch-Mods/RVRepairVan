@@ -4,6 +4,14 @@ All notable changes to RVRepairVan are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [2.6.2] - 2026-08-04
+
+### Fixed
+- Talking to Mrs. Ming could show an option that did nothing when you clicked it, leaving
+  the questline stuck. The same could happen with Donna and Marco.
+- When the game is slow handing over an NPC's dialogue, the mod waits for it now. If it
+  never shows up at all, the NPC just says their line out loud and the step still goes through.
+
 ## [2.6.1] - 2026-08-01
 
 ### Changed
