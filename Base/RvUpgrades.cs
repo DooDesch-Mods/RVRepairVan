@@ -50,7 +50,20 @@ namespace RVRepairVan.Base
             }
         }
 
-        internal static bool Owned(RvUpgrade up) => (Mask & (int)up) != 0;
+        /// <summary>Every bit we actually support - used to sanitise anything that arrives over the wire.</summary>
+        private const int AllBits = (int)(RvUpgrade.GutInterior | RvUpgrade.WorkshopFloor
+                                        | RvUpgrade.CrewQuarters | RvUpgrade.LoadingDock);
+
+        /// <summary>
+        /// Exactly one known upgrade? A purchase arrives as an int over the network, and anything else - a
+        /// composite like 15, a negative, an unknown bit - has no price and no prerequisite, so it would grant
+        /// itself for nothing. Everything that can be bought goes through this gate first.
+        /// </summary>
+        internal static bool IsValid(RvUpgrade up) =>
+            up == RvUpgrade.GutInterior || up == RvUpgrade.WorkshopFloor
+            || up == RvUpgrade.CrewQuarters || up == RvUpgrade.LoadingDock;
+
+        internal static bool Owned(RvUpgrade up) => IsValid(up) && (Mask & (int)up) != 0;
 
         internal static int Price(RvUpgrade up)
         {
@@ -108,6 +121,7 @@ namespace RVRepairVan.Base
         /// <summary>Should Marco offer this upgrade right now? Drives the dialogue choice's visibility check.</summary>
         internal static bool Available(RvUpgrade up)
         {
+            if (!IsValid(up)) return false;
             if (!RVRepairVanPreferences.Enabled || !RVRepairVanPreferences.UpgradesEnabled) return false;
             if (!RepairStateStore.GetRepaired()) return false;   // Marco sells build-outs, not repairs
             if (Owned(up)) return false;
@@ -157,19 +171,20 @@ namespace RVRepairVan.Base
                     Questline.SayMarco(L10n.T("Come back when you've got {0}.", MoneyManager.FormatAmount(price)));
                     return;
                 }
+                // Charge and record ownership in the SAME step. Deferring the mask to the cinematic's midpoint
+                // callback meant two purchases arriving before that callback both saw the upgrade as unowned and
+                // both charged, while ScreenTransition rejected the second fade - two charges, one upgrade. The
+                // cinematic is presentation; it must not carry the transaction.
                 S1API.Money.Money.ChangeCashBalance(-price, true, true);
+                Mask = Mask | (int)up;   // setter replicates to clients
+                Core.Log.Msg("[Upgrade] " + up + " bought for " + MoneyManager.FormatAmount(price) + ".");
 
-                Action commit = () =>
-                {
-                    Mask = Mask | (int)up;   // setter replicates to clients
-                    Apply(up);
-                    Core.Log.Msg("[Upgrade] " + up + " bought for " + MoneyManager.FormatAmount(price) + ".");
-                };
-
+                // Apply is a retryable projection of that ownership - if it does not take now, the re-apply pass
+                // after the next load runs it again.
                 if (withCinematic)
-                    Effects.RepairCinematic.PlayUpgrade(() => commit(), () => Questline.SayMarco(DoneLine(up)));
+                    Effects.RepairCinematic.PlayUpgrade(() => Apply(up), () => Questline.SayMarco(DoneLine(up)));
                 else
-                    commit();   // a client acted - commit now, their own cinematic is already running
+                    Apply(up);   // a client acted - their own cinematic is already running
             }
             catch (Exception e) { Core.Log.Warning("[Upgrade] host buy " + up + " failed: " + e.Message); }
         }
@@ -178,7 +193,7 @@ namespace RVRepairVan.Base
         internal static void ApplySync(int mask)
         {
             if (NetworkBus.IsServer) return;
-            RepairStateStore.SetUpgrades(mask);
+            RepairStateStore.SetUpgrades(mask & AllBits);   // never adopt bits we do not know
             ApplyOwned();
             Core.LogDebug("[Upgrade] client applied UpgradeSync mask=" + mask);
         }

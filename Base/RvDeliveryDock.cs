@@ -45,6 +45,7 @@ namespace RVRepairVan.Base
         internal static void Apply()
         {
             if (_applied) return;
+            LoadingDock dock = null;
             try
             {
                 Transform root = RVManager.Root;
@@ -63,8 +64,15 @@ namespace RVRepairVan.Base
                     return;
                 }
 
-                LoadingDock dock = UnityEngine.Object.Instantiate(template, root.TransformPoint(DockLocal), root.rotation * DockRot);
+                dock = UnityEngine.Object.Instantiate(template, root.TransformPoint(DockLocal), root.rotation * DockRot);
                 if (dock == null) { Core.Log.Warning("[Dock] instantiate failed - retrying on the next apply."); return; }
+
+                // Cloning a live scene entity copies its baked GUID, and Awake has already run by the time we get
+                // the reference back - so the clone has taken over the Manor dock's entry in GUIDManager
+                // (RegisterObject replaces an existing mapping). Left alone, anything resolving the Manor's dock
+                // or parking lot would get the RV's copy instead. Give the clone fresh GUIDs and hand the
+                // originals their registrations back.
+                RepairClonedGuids(dock, template);
 
                 dock.name = DockName;
                 dock.ParentProperty = prop;
@@ -79,9 +87,61 @@ namespace RVRepairVan.Base
 
                 _applied = true;
                 DockReady = true;
+                dock = null;   // handed over to the property - no longer ours to clean up
                 Core.Log.Msg("[Dock] loading dock attached (" + list.Count + " total on the RV).");
             }
             catch (Exception e) { Core.Log.Warning("[Dock] apply failed: " + e.Message); }
+            finally
+            {
+                // A clone that never made it onto the property would otherwise linger in the scene - and each
+                // retry would add another one, with another set of GUID registrations to fight over.
+                if (dock != null)
+                {
+                    try { UnityEngine.Object.Destroy(dock.gameObject); } catch { }
+                    Core.LogDebug("[Dock] discarded an unattached dock clone.");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Undo the GUID theft an Instantiate of a live scene entity causes: give the clone's registerables fresh
+        /// GUIDs, then re-register the originals so their mappings point back at the real Manor objects.
+        /// Covers the dock itself and its parking lot - the two things under a LoadingDock that register a GUID.
+        /// </summary>
+        private static void RepairClonedGuids(LoadingDock clone, LoadingDock original)
+        {
+            try
+            {
+                ReassignGuid(clone, original);
+
+                var cloneLots = clone.GetComponentsInChildren<Il2CppScheduleOne.Map.ParkingLot>(true);
+                var origLots = original.GetComponentsInChildren<Il2CppScheduleOne.Map.ParkingLot>(true);
+                if (cloneLots != null)
+                    for (int i = 0; i < cloneLots.Length; i++)
+                    {
+                        var origLot = (origLots != null && i < origLots.Length) ? origLots[i] : null;
+                        ReassignGuid(cloneLots[i], origLot);
+                    }
+            }
+            catch (Exception e) { Core.Log.Warning("[Dock] GUID repair failed: " + e.Message); }
+        }
+
+        private static void ReassignGuid(Component cloneComp, Component originalComp)
+        {
+            try
+            {
+                var clone = cloneComp != null ? cloneComp.TryCast<Il2CppScheduleOne.IGUIDRegisterable>() : null;
+                if (clone == null) return;
+
+                Il2Cpp.GUIDManager.DeregisterObject(clone);
+                clone.SetGUID(Il2Cpp.GUIDManager.GenerateUniqueGUID());
+                Il2Cpp.GUIDManager.RegisterObject(clone, null);
+
+                // The original lost its entry when the clone's Awake registered the copied GUID - put it back.
+                var orig = originalComp != null ? originalComp.TryCast<Il2CppScheduleOne.IGUIDRegisterable>() : null;
+                if (orig != null) Il2Cpp.GUIDManager.RegisterObject(orig, null);
+            }
+            catch (Exception e) { Core.LogDebug("[Dock] reassign guid: " + e.Message); }
         }
 
         private static bool HasOurDock(Property prop)

@@ -7,7 +7,7 @@ using RVRepairVan.Managers;
 using RVRepairVan.Persistence;
 using RVRepairVan.Quests;
 
-[assembly: MelonInfo(typeof(RVRepairVan.Core), "RVRepairVan", "2.6.2", "DooDesch", "https://github.com/DooDesch-Mods/RVRepairVan")]
+[assembly: MelonInfo(typeof(RVRepairVan.Core), "RVRepairVan", "3.0.0", "DooDesch", "https://github.com/DooDesch-Mods/RVRepairVan")]
 [assembly: MelonGame("TVGS", "Schedule I")]
 
 namespace RVRepairVan
@@ -71,6 +71,11 @@ namespace RVRepairVan
             {
                 MarcoRepairDialogue.Reset();
                 MelonCoroutines.Start(MarcoRepairDialogue.SetupCoroutine());
+                // The client mirror and the join snapshot used to be wired only by Questline.Start, so a Simple
+                // mode client never asked for state: it kept a wrecked, un-upgraded RV until some later broadcast
+                // happened to arrive, and the previous session's mirror leaked in. Both are quest-mode-independent.
+                RepairStateStore.ResetClient();
+                MelonCoroutines.Start(Questline.NetJoinCoroutineShared());
             }
 
             RVRepairVan.Base.RvUpgrades.Reset();   // drop last scene's cached transforms; the mask lives in the save

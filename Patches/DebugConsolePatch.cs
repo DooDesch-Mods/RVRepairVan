@@ -46,7 +46,7 @@ namespace RVRepairVan.Patches
             string cmd = parts[0].ToLower();
             if (cmd != "rvtest" && cmd != "rvstage" && cmd != "rvdrops" && cmd != "rvclear"
                 && cmd != "rvgiveclient" && cmd != "rvdiag" && cmd != "rvreinject" && cmd != "rvprobe"
-                && cmd != "rvupg" && cmd != "rvrepair")
+                && cmd != "rvupg" && cmd != "rvrepair" && cmd != "rvbuy")
                 return false;   // not ours - let the game handle it
 
             // Both overloads can fire for a single submission (the string body calls the List body), so run the
@@ -88,6 +88,16 @@ namespace RVRepairVan.Patches
                             Core.Log.Msg("[Debug] rvrepair: RV repaired and marked as paid for.");
                         }
                         else Core.Log.Warning("[Debug] rvrepair: repair call failed (is the RV loaded?).");
+                        break;
+                    case "rvbuy":     // exercise the REAL purchase path (money + cinematic), as Marco's choice does
+                        if (parts.Length > 1 && int.TryParse(parts[1], out int bit))
+                        {
+                            float before = S1API.Money.Money.GetCashBalance();
+                            RVRepairVan.Base.RvUpgrades.Buy((RVRepairVan.Base.RvUpgrade)bit);
+                            Core.Log.Msg("[Debug] rvbuy " + bit + ": cash " + before + " -> " + S1API.Money.Money.GetCashBalance()
+                                + ", mask=" + RVRepairVan.Base.RvUpgrades.Mask);
+                        }
+                        else Core.Log.Warning("[Debug] rvbuy <bit>  (1=GutInterior 2=WorkshopFloor 4=CrewQuarters 8=LoadingDock)");
                         break;
                     case "rvupg":     // 'rvupg' dumps the build-out state; 'rvupg <mask>' grants/revokes (host)
                         if (parts.Length > 1 && int.TryParse(parts[1], out int mask))

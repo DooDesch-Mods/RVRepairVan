@@ -7,7 +7,7 @@
 > errands, referral haggling, and a little repair cinematic at the end. Built on
 > [S1API](https://github.com/ifBars/S1API).
 
-![Version](https://img.shields.io/badge/version-2.6.2-blue)
+![Version](https://img.shields.io/badge/version-3.0.0-blue)
 ![Game](https://img.shields.io/badge/game-Schedule%20I-purple)
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3+-green)
 ![S1API](https://img.shields.io/badge/S1API-required-orange)
@@ -29,6 +29,12 @@
   fee to continue.
 - **Repair cinematic.** When you pay, the screen fades to black, you hear Marco work on
   it (and grumble), then it fades back and he tells you she is ready. Plays in both modes.
+- **Marco's build-outs.** Once the RV is standing again, he sells four upgrades that turn
+  it into somewhere you can actually work. Each one costs money and runs its own short
+  cinematic: **gut the interior** ($2,500) for floor space, a **workshop floor** ($7,500)
+  that adds 24 build tiles to the RV's own 32, **crew quarters** ($15,000) so three
+  employees can be stationed there, and a **loading dock** ($25,000) your supplier can
+  deliver to. The first three build on each other; the dock stands alone.
 - **Save-bound persistence.** Progress and the repaired RV are stored inside the game
   save, so they stay in sync with the world: finishing without saving (or after a crash)
   correctly reverts instead of leaving you stuck.
@@ -76,6 +82,15 @@ Settings live in
 | `BasePriceWithReferral` | `10000` | Questline price after you drop Mrs. Ming's name. |
 | `MinSampleDiscount` | `100` | Smallest price cut a single packaged sample can give. |
 | `MaxSampleDiscount` | `500` | Largest price cut a single packaged sample can give. |
+| `UpgradesEnabled` | `true` | Marco's build-outs. Off = the RV stays a plain shell. |
+| `PriceGutInterior` | `2500` | Clears the bed, bench, cabinets, chairs and the partition wall. |
+| `PriceWorkshopFloor` | `7500` | Extends the build grid. Needs the interior gutted first. |
+| `PriceCrewQuarters` | `15000` | Lets employees be stationed at the RV. Needs the workshop floor. |
+| `PriceLoadingDock` | `25000` | Adds a delivery dock. |
+| `CrewSize` | `3` | How many employees the RV holds once the crew quarters are built. |
+| `BuildGridExtraTiles` | `24` | Tiles the workshop floor adds on top of the RV's own 32. |
+| `InstantRepair` | `false` | Repairs the RV free of charge as soon as it is wrecked. |
+| `RepairTakesADay` | `false` | Marco keeps the RV for 24 in-game hours and texts you when it is done. |
 
 The language lives in its own shared section (`DooDesch` - all DooDesch mods with
 translations read the same value):

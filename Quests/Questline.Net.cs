@@ -49,6 +49,9 @@ namespace RVRepairVan.Quests
 
         // On join, a client cannot trust its local save - ask the host for the current snapshot once the
         // network session is up. The host answers with StageSync (+ RepairApplied if already repaired).
+        /// <summary>Same join handshake, reachable from Simple mode - which has no questline to start it.</summary>
+        internal static IEnumerator NetJoinCoroutineShared() => NetJoinCoroutine();
+
         private static IEnumerator NetJoinCoroutine()
         {
             // Wait until we're actually in a networked session and know our role (up to ~30s).
@@ -254,6 +257,10 @@ namespace RVRepairVan.Quests
         private static void HostCheckedRv()
         {
             if (Stage != Paid) return;
+            // With "repair takes a day" the stage flips to Paid the moment Marco takes the job, while the RV is
+            // still a wreck. Standing near it then would close the quest with "There she is. Standing again."
+            // in front of the wreck - so require the RV to actually be back.
+            if (!RepairStateStore.GetRepaired() || Base.RvRepairJob.JobRunning) return;
             Stage = Done;
             RepairQuest.CompleteIfActive();
             WorldSay(_marcoT, L10n.T("There she is. Standing again. Interior's your problem. Try not to piss off whoever torched it the first time."));

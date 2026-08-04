@@ -6,7 +6,7 @@
 > quest sends you from the motel manager to Mrs. Ming to Marco the mechanic, with real
 > errands, referral haggling, and a little repair cinematic at the end.
 
-![Version](https://img.shields.io/badge/version-2.6.2-blue)
+![Version](https://img.shields.io/badge/version-3.0.0-blue)
 ![Game](https://img.shields.io/badge/game-Schedule%20I-purple)
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3+-green)
 ![S1API](https://img.shields.io/badge/S1API-required-orange)

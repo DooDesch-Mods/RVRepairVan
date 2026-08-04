@@ -145,6 +145,11 @@ namespace RVRepairVan.Base
 
                 BakeNavMesh(root, prop);
 
+                // Only latch when the bake actually produced something. Capacity and idle points are already in
+                // place (and idempotent), so a retry is cheap - but silently latching a crew that cannot walk
+                // anywhere would leave a paid upgrade permanently inert.
+                if (!_navBaked) { Core.Log.Warning("[Crew] NavMesh not ready yet - will retry on the next apply."); return; }
+
                 _applied = true;
                 Core.Log.Msg("[Crew] quarters ready - capacity=" + prop.EmployeeCapacity
                     + " idlePoints=" + (prop.EmployeeIdlePoints != null ? prop.EmployeeIdlePoints.Length : 0)
@@ -394,6 +399,12 @@ namespace RVRepairVan.Base
                 PropertyManager pm = Singleton<PropertyManager>.Instance;
                 Property rv = pm != null ? pm.GetProperty("rv") : null;
                 if (rv == null) return;
+
+                // The added build tiles have to exist BEFORE the object loop runs, or a machine placed on one of
+                // them cannot resolve its coordinate and GridItem destroys itself - the next save then loses it
+                // for good. LoadProperty returns before PropertyLoader touches either objects or employees, so
+                // this is the one hook that is early enough for both.
+                RvBuildGrid.ProvisionForLoad(rv);
 
                 int saved = propertyData.Employees != null ? propertyData.Employees.Length : 0;
                 RvCrew.ProvisionForLoad(rv, saved);

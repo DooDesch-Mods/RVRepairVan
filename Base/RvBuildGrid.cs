@@ -26,14 +26,36 @@ namespace RVRepairVan.Base
 
         internal static void Reset() { _applied = false; _clonedTiles = 0; }
 
+        /// <summary>
+        /// Rebuild the added tiles while the property is loading, before the game restores the objects placed on
+        /// them. The extra tiles only exist at runtime: if a saved machine sits on one and the tile is not back
+        /// yet, <c>Grid.GetTile</c> returns null and <c>GridItem</c> destroys itself - the next save then loses
+        /// the machine permanently. Called from the PropertyManager.LoadProperty postfix, which returns before
+        /// PropertyLoader starts loading object records.
+        /// </summary>
+        internal static void ProvisionForLoad(Property prop)
+        {
+            try
+            {
+                if (prop == null || !RVRepairVanPreferences.UpgradesEnabled) return;
+                if (!RvUpgrades.Owned(RvUpgrade.WorkshopFloor)) return;
+                ApplyTo(prop);
+            }
+            catch (Exception e) { Core.Log.Warning("[Grid] load provisioning failed: " + e.Message); }
+        }
+
         internal static void Apply()
         {
             if (_applied) return;
+            Property prop = PropertyOf();
+            if (prop == null) { Core.LogDebug("[Grid] RV property not ready - will retry on the next apply."); return; }
+            ApplyTo(prop);
+        }
+
+        private static void ApplyTo(Property prop)
+        {
             try
             {
-                Property prop = PropertyOf();
-                if (prop == null) { Core.LogDebug("[Grid] RV property not ready - will retry on the next apply."); return; }
-
                 int enabled = 0, tiles = 0;
                 var grids = prop.Grids;
                 if (grids != null)
@@ -48,14 +70,16 @@ namespace RVRepairVan.Base
                 if (enabled == 0 && tiles == 0)
                 {
                     Core.Log.Warning("[Grid] the RV reports no build grid - equipment cannot be placed inside.");
-                    return;
+                    return;   // leave _applied false so the next pass retries
                 }
-
-                _applied = true;
-                Core.Log.Msg("[Grid] workshop floor open - " + enabled + " grid(s) switched on, " + tiles + " tile(s).");
 
                 int extra = RVRepairVanPreferences.BuildGridExtraTiles;
                 if (extra > 0) ExpandGrid(prop, extra);
+
+                // Latch only once the work is actually done, so a failed pass is retried rather than swallowed.
+                _applied = true;
+                Core.Log.Msg("[Grid] workshop floor open - " + enabled + " grid(s) switched on, " + tiles
+                    + " tile(s) total, " + _clonedTiles + " of them added by this upgrade.");
             }
             catch (Exception e) { Core.Log.Warning("[Grid] apply failed: " + e.Message); }
         }

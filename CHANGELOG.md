@@ -4,6 +4,30 @@ All notable changes to RVRepairVan are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [3.0.0] - 2026-08-04
+
+### Added
+- Marco sells build-outs once the RV is standing again. Each one costs money and
+  gets its own short cinematic, and they build on each other.
+  - **Gut the interior** ($2,500) tears out the bed, bench, cabinets, chairs and the
+    partition wall. What is left is floor.
+  - **Build me a workshop floor** ($7,500) adds 24 tiles on top of the RV's own 32,
+    so equipment fits inside.
+  - **Make room for a crew** ($15,000) puts the RV back in the Fixer's list. Three
+    employees can work there - place a locker inside or they will just stand around.
+  - **I need a loading dock** ($25,000) and your supplier delivers to the RV.
+- Every price is a setting, along with `CrewSize` and `BuildGridExtraTiles`. Change
+  them and Marco's offer updates without a restart. `UpgradesEnabled` turns the whole
+  shop off.
+- `InstantRepair` puts the RV back together for free the moment it is wrecked, for
+  anyone who wants the van and not the story.
+- `RepairTakesADay` hands the RV to Marco for 24 in-game hours instead of fixing it on
+  the spot. He texts you when it is ready.
+
+### Fixed
+- Loading a save from the main menu could read your progress back as empty and start
+  the questline over. Your state was being cleared right after it was loaded.
+
 ## [2.6.2] - 2026-08-04
 
 ### Fixed
