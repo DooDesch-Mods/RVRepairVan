@@ -24,6 +24,10 @@ project adheres to Semantic Versioning.
 - `RepairTakesADay` hands the RV to Marco for 24 in-game hours instead of fixing it on
   the spot. He texts you when it is ready.
 
+### Changed
+- Needs S1API **3.1.8** or newer. On an older one the mod loads but does nothing, so
+  update it along with the mod.
+
 ### Fixed
 - Loading a save from the main menu could read your progress back as empty and start
   the questline over. Your state was being cleared right after it was loaded.

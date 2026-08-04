@@ -17,12 +17,27 @@ namespace RVRepairVan.Base
     /// </summary>
     internal static class RvInterior
     {
+        // Under RV/rv/Main/Interior.
         private static readonly string[] InteriorChildren =
         {
             "Bed", "Bench", "Cabinets", "Chair", "Chair (1)", "Dash",
         };
 
-        private const string WallPath = "rv/Main/Wall.001";
+        // Under RV/rv/Main directly - and this is the half that was missed at first. The furniture is NOT all
+        // parented to Interior: the wall cabinets and the second partition sit one level up, so gutting only the
+        // Interior children left the cabinets and one wall standing. Measured with rvprobe, which dumps the whole
+        // model tree; "Main" has 55 children and only 6 of them are the Interior group.
+        // Structure stays: Floor, Steps, Walls .002, windows, mirrors, lights, bumpers and the driver's controls.
+        private static readonly string[] MainChildren =
+        {
+            "Wall.001", "Wall.001 (1)",
+            "Cabinet.001", "Cabinet.001 (1)",
+            "Cabinet.002", "Cabinet.002 (1)",
+            "Cabinet.003", "Cabinet.003 (1)",
+            "Cabinet.004", "Cabinet.004 (1)",
+        };
+
+        private const string MainPath = "rv/Main";
         private const string InteriorPath = "rv/Main/Interior";
 
         // name -> was it active before we touched it
@@ -53,12 +68,18 @@ namespace RVRepairVan.Base
                 }
                 else Core.Log.Warning("[Interior] '" + InteriorPath + "' not found under the RV model.");
 
-                Transform wall = model.Find(WallPath);
-                if (wall != null)
+                Transform main = model.Find(MainPath);
+                if (main != null)
                 {
-                    Remember("Wall.001", wall.gameObject.activeSelf);
-                    if (wall.gameObject.activeSelf) { wall.gameObject.SetActive(false); hidden++; }
+                    foreach (string name in MainChildren)
+                    {
+                        Transform t = main.Find(name);
+                        if (t == null) continue;
+                        Remember("Main/" + name, t.gameObject.activeSelf);
+                        if (t.gameObject.activeSelf) { t.gameObject.SetActive(false); hidden++; }
+                    }
                 }
+                else Core.Log.Warning("[Interior] '" + MainPath + "' not found under the RV model.");
 
                 _applied = true;
                 Core.Log.Msg("[Interior] gutted - " + hidden + " object(s) hidden.");
@@ -79,8 +100,12 @@ namespace RVRepairVan.Base
                     Transform t = interior != null ? interior.Find(name) : null;
                     if (t != null && _original.TryGetValue(name, out bool was)) t.gameObject.SetActive(was);
                 }
-                Transform wall = model.Find(WallPath);
-                if (wall != null && _original.TryGetValue("Wall.001", out bool wallWas)) wall.gameObject.SetActive(wallWas);
+                Transform main = model.Find(MainPath);
+                foreach (string name in MainChildren)
+                {
+                    Transform t = main != null ? main.Find(name) : null;
+                    if (t != null && _original.TryGetValue("Main/" + name, out bool was)) t.gameObject.SetActive(was);
+                }
                 _applied = false;
                 Core.Log.Msg("[Interior] restored to its original state.");
             }

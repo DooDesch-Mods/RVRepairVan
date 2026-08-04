@@ -46,6 +46,7 @@ namespace RVRepairVan.Patches
                 DumpGrids(prop, root);
                 DumpNavMesh(root);
                 DumpInterior(root);
+                DumpTree(root);
                 Core.Log.Msg("[Probe] ===== end =====");
             }
             catch (Exception e) { Core.Log.Warning("[Probe] failed: " + e); }
@@ -155,6 +156,35 @@ namespace RVRepairVan.Patches
                 Core.Log.Msg("[Probe] Wall.001 " + (wall == null ? "not found" : "found, active=" + wall.gameObject.activeSelf));
             }
             catch (Exception e) { Core.Log.Warning("[Probe] interior: " + e.Message); }
+        }
+
+        /// <summary>
+        /// Dump the whole intact-RV model tree with each node's active state and whether it renders anything.
+        /// The "gut the interior" list has to come from this, not from another mod's hard-coded names: clutter
+        /// like the tarp, radio, vase and ashtray hangs directly off the model root, not under Interior.
+        /// </summary>
+        private static void DumpTree(Transform root)
+        {
+            try
+            {
+                Transform model = root.Find("RV");
+                if (model == null) { Core.Log.Msg("[Probe] intact model 'RV' not found."); return; }
+                Core.Log.Msg("[Probe] ----- intact model tree (r = has a Renderer) -----");
+                Walk(model, 0);
+                Core.Log.Msg("[Probe] ----- end tree -----");
+            }
+            catch (Exception e) { Core.Log.Warning("[Probe] tree: " + e.Message); }
+        }
+
+        private static void Walk(Transform t, int depth)
+        {
+            if (depth > 4) return;   // deep enough to find clutter, shallow enough to stay readable
+            string pad = new string(' ', depth * 2);
+            bool rend = false;
+            try { rend = t.GetComponent<Renderer>() != null; } catch { }
+            Core.Log.Msg("[Probe]   " + pad + (t.gameObject.activeSelf ? "[on ] " : "[off] ")
+                + (rend ? "r " : "  ") + t.name + "  (" + t.childCount + ")");
+            for (int i = 0; i < t.childCount; i++) Walk(t.GetChild(i), depth + 1);
         }
 
         private static string PathOf(Transform t)
