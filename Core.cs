@@ -34,6 +34,12 @@ namespace RVRepairVan
             RVRepairVanPreferences.Initialize();
             Localization.German.Register();   // before any L10n.T use (quest title, dialogue, items)
             HarmonyInstance.PatchAll();
+
+#if DEBUG
+            // The debug words are answered in a SubmitCommand prefix and registered nowhere, so nothing that lists
+            // commands can see them. This puts them in the game's own list for a terminal to complete.
+            Patches.DebugConsolePatch.DeclareForTools();
+#endif
             RVRepairVan.Net.NetworkBus.Init(HarmonyInstance);   // co-op sync (host-authoritative; no-op offline)
 
             Log.Msg($"RVRepairVan initialized. Enabled={RVRepairVanPreferences.Enabled}, Questline={RVRepairVanPreferences.QuestlineEnabled}, RepairPrice={RVRepairVanPreferences.RepairPrice}");

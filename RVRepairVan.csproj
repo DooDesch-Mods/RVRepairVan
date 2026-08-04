@@ -54,6 +54,18 @@
   </PropertyGroup>
 
   <!-- Backend-specific GlobalUsings: keep only the active backend's file -->
+  <!-- hash's shim: one file, no references, no hard dependency. It puts this mod's own console words into the
+       game's command list so anything that lists commands can see them. Taken from the hash checkout beside this
+       one when there is one, and from the workspace copy otherwise - CI checks out this repo alone. -->
+  <PropertyGroup>
+    <HashShimPath Condition="Exists('$(MSBuildThisFileDirectory)../Hash/Hash.Api/HashCommands.cs')">$(MSBuildThisFileDirectory)../Hash/Hash.Api/HashCommands.cs</HashShimPath>
+    <HashShimPath Condition="'$(HashShimPath)' == '' And Exists('$(WorkspaceLibPath)/hash-api/HashCommands.cs')">$(WorkspaceLibPath)/hash-api/HashCommands.cs</HashShimPath>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(HashShimPath)' != ''">
+    <Compile Include="$(HashShimPath)" Link="Hash.Api/HashCommands.cs" />
+  </ItemGroup>
+
   <ItemGroup>
     <Compile Remove="Compat/GlobalUsings.Il2Cpp.cs" Condition="'$(Backend)' != 'il2cpp'" />
     <Compile Remove="Compat/GlobalUsings.Mono.cs" Condition="'$(Backend)' != 'mono'" />

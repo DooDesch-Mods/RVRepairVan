@@ -1,4 +1,5 @@
 #if DEBUG
+using Hash.Api;
 using System;
 using HarmonyLib;
 using Il2CppScheduleOne.Product.Packaging;            // PackagingDefinition
@@ -40,6 +41,32 @@ namespace RVRepairVan.Patches
         private static string _lastSig = "";
 
         /// <summary>Returns true if the command was one of ours (and should be swallowed), false to let the game handle it.</summary>
+        /// <summary>
+        /// Put these words into the game's command list, so a terminal or an autocomplete can offer them.
+        ///
+        /// The prefix below answers them and nothing registers them, so no list can learn they exist. hash being
+        /// absent makes every call a no-op, and the entry never dispatches - the prefix still runs the line.
+        /// </summary>
+        internal static void DeclareForTools()
+        {
+            foreach (string[] one in Listing) HashCommands.Add(one[0], one[1], one[2]);
+        }
+
+        private static readonly string[][] Listing =
+        {
+            new[] { "rvtest", "drop pre-packaged products at every dead drop", "rvtest jar ogkush" },
+            new[] { "rvstage", "skip errands while testing - run on the host", "rvstage 3" },
+            new[] { "rvdrops", "dump every dead drop: name, position, empty", "rvdrops" },
+            new[] { "rvclear", "clear the staged test state", "rvclear" },
+            new[] { "rvgiveclient", "hand the client its half of a co-op errand", "rvgiveclient" },
+            new[] { "rvdiag", "what the questline thinks is going on", "rvdiag" },
+            new[] { "rvreinject", "rebuild the quest objects after a reload", "rvreinject" },
+            new[] { "rvprobe", "poke one step of the questline", "rvprobe" },
+            new[] { "rvupg", "the van's upgrades and what they cost", "rvupg" },
+            new[] { "rvrepair", "repair the van right now", "rvrepair" },
+            new[] { "rvbuy", "buy an upgrade without the money", "rvbuy" },
+        };
+
         private static bool Dispatch(string[] parts)
         {
             if (parts.Length == 0) return false;
