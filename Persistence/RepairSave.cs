@@ -27,6 +27,12 @@ namespace RVRepairVan.Persistence
         [SaveableField("rv_stage")] private int _stage;
         [SaveableField("rv_samples")] private int _samples;
         [SaveableField("rv_discount")] private int _discount;
+        // Bitmask of the upgrades Marco has been paid for (see RvUpgrade). The upgrades themselves are runtime
+        // effects on scene objects, so this mask is what gets re-applied on every load.
+        [SaveableField("rv_upgrades")] private int _upgrades;
+        // In-game minute stamp (TimeManager.GetTotalMinSum) at which Marco took the job, for the
+        // "repair takes a day" option. 0 = no job running. Persisted so a reload keeps the remaining time.
+        [SaveableField("rv_repair_started")] private int _repairStartedAt;
 
         public RepairSave() { Instance = this; }
 
@@ -34,13 +40,19 @@ namespace RVRepairVan.Persistence
         internal int Stage { get => _stage; set => _stage = value; }
         internal int Samples { get => _samples; set => _samples = value; }
         internal int Discount { get => _discount; set => _discount = value; }
+        internal int Upgrades { get => _upgrades; set => _upgrades = value; }
+        internal int RepairStartedAt { get => _repairStartedAt; set => _repairStartedAt = value; }
 
         /// <summary>
-        /// A new game load is starting. Mark not-loaded AND wipe the fields to defaults. The wipe matters because
-        /// S1API keeps ONE instance per type for the whole process: loading save A then save B reuses the same
-        /// object, and for a save with no prior mod data the pipeline calls OnCreated (not OnLoaded) - without this
-        /// reset, save A's values would leak into save B. BeginLoad runs on scene activation, before either the
-        /// data load (OnLoaded) or the fresh-save init (OnCreated), so it is the safe baseline.
+        /// Reset to defaults between saves. The wipe matters because S1API keeps ONE instance per type for the
+        /// whole process: loading save A then save B reuses the same object, and for a save with no prior mod data
+        /// the pipeline calls OnCreated (not OnLoaded) - without this reset, save A's values would leak into save B.
+        ///
+        /// Call this on the MENU scene, not on "Main". S1API's OnLoaded does not have a fixed order relative to
+        /// MelonLoader's OnSceneWasLoaded: going menu -> load, OnLoaded fires FIRST, so wiping on "Main" threw away
+        /// the values that had just been read (measured: "[State] loaded: repaired=True" followed by the questline
+        /// restarting from scratch because everything read back as zero). The menu is the one point that is always
+        /// between two saves and always before the load.
         /// </summary>
         internal static void BeginLoad()
         {
@@ -51,6 +63,8 @@ namespace RVRepairVan.Persistence
                 Instance._stage = 0;
                 Instance._samples = 0;
                 Instance._discount = 0;
+                Instance._upgrades = 0;
+                Instance._repairStartedAt = 0;
             }
         }
 
@@ -59,7 +73,14 @@ namespace RVRepairVan.Persistence
         {
             Instance = this;
             Loaded = true;
-            Core.Log.Msg($"[State] loaded: repaired={_repaired} stage={_stage} samples={_samples} discount={_discount}");
+            Core.Log.Msg($"[State] loaded: repaired={_repaired} stage={_stage} samples={_samples} discount={_discount} upgrades={_upgrades}");
+
+            // Raise the RV's employee capacity NOW, at the earliest moment the paid-for mask is known. The game's
+            // own employee loader re-runs CreateEmployee_Server, which refuses while Employees.Count >=
+            // EmployeeCapacity - so a capacity applied later (with the rest of the build-out) comes too late and
+            // the crew is silently dropped on every load. Measured: employees=1 before a reload, 0 after.
+            try { RVRepairVan.Base.RvCrew.ApplyCapacityEarly(); }
+            catch (System.Exception e) { Core.Log.Warning("[State] early crew capacity failed: " + e.Message); }
         }
 
         // No mod data for this save yet (fresh save / first time / a save from before the mod) -> clean defaults.
@@ -71,13 +92,15 @@ namespace RVRepairVan.Persistence
             _stage = 0;
             _samples = 0;
             _discount = 0;
+            _upgrades = 0;
+            _repairStartedAt = 0;
             Loaded = true;
             Core.Log.Msg("[State] created (fresh save) - defaults applied.");
         }
 
         protected override void OnSaved()
         {
-            Core.Log.Msg($"[State] saved: repaired={_repaired} stage={_stage} samples={_samples} discount={_discount}");
+            Core.Log.Msg($"[State] saved: repaired={_repaired} stage={_stage} samples={_samples} discount={_discount} upgrades={_upgrades}");
         }
     }
 }

@@ -41,14 +41,19 @@ namespace RVRepairVan
 
         public override void OnSceneWasLoaded(int buildIndex, string sceneName)
         {
+            // Back at the menu: clear the save-bound state so the next save starts from a clean slate. This has to
+            // happen HERE and not on "Main" - S1API's OnLoaded runs before OnSceneWasLoaded when going menu ->
+            // load, so wiping on "Main" would discard the values it had just read.
+            if (sceneName == "Menu")
+            {
+                RepairSave.BeginLoad();
+                return;
+            }
+
             if (sceneName != "Main")
             {
                 return;
             }
-
-            // A new game is loading - our save-bound state will be repopulated by S1API's OnLoaded. Mark it
-            // pending so the questline waits for the fresh values instead of acting on the previous session's.
-            RepairSave.BeginLoad();
 
             RVManager.Reset();
             RVRepairVan.Effects.RepairCinematic.ForceReset();   // un-black + unlock input if a prior cinematic was interrupted
@@ -68,7 +73,10 @@ namespace RVRepairVan
                 MelonCoroutines.Start(MarcoRepairDialogue.SetupCoroutine());
             }
 
+            RVRepairVan.Base.RvUpgrades.Reset();   // drop last scene's cached transforms; the mask lives in the save
+
             MelonCoroutines.Start(RestoreRepairCoroutine());
+            MelonCoroutines.Start(RVRepairVan.Base.RvRepairJob.InstantRepairCoroutine());
         }
 
         /// <summary>
@@ -171,6 +179,17 @@ namespace RVRepairVan
             {
                 Log.Msg("[Restore] RV was previously repaired - restoring without charge.");
                 RVManager.Repair();
+            }
+
+            // Marco's build-outs are runtime effects on scene objects, not saved world state - only the paid-for
+            // mask is persisted, so re-apply it now that the intact RV exists. Retry a few times: the interior
+            // and the grids only resolve once the repaired model is the active one.
+            RVRepairVan.Base.RvRepairJob.ResumeIfRunning();
+            for (int i = 0; i < 5; i++)
+            {
+                try { RVRepairVan.Base.RvUpgrades.ApplyOwned(); }
+                catch (Exception e) { Log.Warning("[Restore] upgrade apply failed: " + e.Message); }
+                yield return new WaitForSeconds(2f);
             }
         }
     }

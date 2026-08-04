@@ -22,10 +22,10 @@ namespace RVRepairVan.Persistence
         // A co-op client mirrors host state here instead of the save-bound RepairSave (see class summary).
         private static bool ClientMode => NetworkBus.Online && !NetworkBus.IsServer;
         private static bool _cRepaired;
-        private static int _cStage, _cSamples, _cDiscount;
+        private static int _cStage, _cSamples, _cDiscount, _cUpgrades;
 
         /// <summary>Clear the client mirror (called on scene load so a previous co-op session never leaks in).</summary>
-        internal static void ResetClient() { _cRepaired = false; _cStage = 0; _cSamples = 0; _cDiscount = 0; }
+        internal static void ResetClient() { _cRepaired = false; _cStage = 0; _cSamples = 0; _cDiscount = 0; _cUpgrades = 0; }
 
         internal static bool GetRepaired() => ClientMode ? _cRepaired : (S != null && S.Repaired);
         internal static void SetRepaired(bool repaired) { if (ClientMode) _cRepaired = repaired; else if (S != null) S.Repaired = repaired; }
@@ -38,5 +38,12 @@ namespace RVRepairVan.Persistence
 
         internal static int GetDiscountTotal() => ClientMode ? _cDiscount : (S != null ? S.Discount : 0);
         internal static void SetDiscountTotal(int discount) { if (ClientMode) _cDiscount = discount; else if (S != null) S.Discount = discount; }
+
+        internal static int GetUpgrades() => ClientMode ? _cUpgrades : (S != null ? S.Upgrades : 0);
+        internal static void SetUpgrades(int mask) { if (ClientMode) _cUpgrades = mask; else if (S != null) S.Upgrades = mask; }
+
+        // Only meaningful on the host/offline: the "repair takes a day" job clock. A client never runs the timer.
+        internal static int GetRepairStartedAt() => S != null ? S.RepairStartedAt : 0;
+        internal static void SetRepairStartedAt(int minSum) { if (S != null) S.RepairStartedAt = minSum; }
     }
 }

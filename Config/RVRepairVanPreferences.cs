@@ -20,6 +20,15 @@ namespace RVRepairVan.Config
         private static MelonPreferences_Entry<int> _basePriceWithReferral;
         private static MelonPreferences_Entry<int> _minSampleDiscount;
         private static MelonPreferences_Entry<int> _maxSampleDiscount;
+        private static MelonPreferences_Entry<bool> _upgradesEnabled;
+        private static MelonPreferences_Entry<int> _priceGutInterior;
+        private static MelonPreferences_Entry<int> _priceWorkshopFloor;
+        private static MelonPreferences_Entry<int> _priceCrewQuarters;
+        private static MelonPreferences_Entry<int> _priceLoadingDock;
+        private static MelonPreferences_Entry<int> _crewSize;
+        private static MelonPreferences_Entry<int> _buildGridExtraTiles;
+        private static MelonPreferences_Entry<bool> _instantRepair;
+        private static MelonPreferences_Entry<bool> _repairTakesADay;
 #if DEBUG
         private static MelonPreferences_Entry<bool> _destroyRvDebug;
         private static MelonPreferences_Entry<bool> _addCashDebug;
@@ -48,6 +57,26 @@ namespace RVRepairVan.Config
                 "Smallest price cut a single free sample can give Marco (cheap product floors here).");
             _maxSampleDiscount = CreateEntry("MaxSampleDiscount", 500, "Questline: Max sample discount",
                 "Largest price cut a single free sample can give. Each packaged sample cuts the price by its value, clamped between min and max, down to the Repair Price floor.");
+
+            _upgradesEnabled = CreateEntry("UpgradesEnabled", true, "Marco's RV upgrades",
+                "After the repair, Marco sells four build-outs that turn the RV into a working base. Turn off to keep the RV as a plain shell.");
+            _priceGutInterior = CreateEntry("PriceGutInterior", 2500, "Upgrade price: gut the interior",
+                "Rips out the bed, bench, cabinets, chairs and the partition wall to make room. Prerequisite for the workshop floor.");
+            _priceWorkshopFloor = CreateEntry("PriceWorkshopFloor", 7500, "Upgrade price: workshop floor",
+                "Extends the RV's build grid by Extra Build Tiles. The RV's own 32 tiles come free with the repair. Prerequisite for the crew quarters.");
+            _priceCrewQuarters = CreateEntry("PriceCrewQuarters", 15000, "Upgrade price: crew quarters",
+                "Lets you hire and station employees at the RV. They still need a locker placed inside before they work.");
+            _priceLoadingDock = CreateEntry("PriceLoadingDock", 25000, "Upgrade price: loading dock",
+                "Adds a delivery dock so suppliers can drop orders at the RV.");
+            _crewSize = CreateEntry("CrewSize", 3, "Crew size",
+                "How many employees the RV can hold once the crew quarters are built.");
+            _buildGridExtraTiles = CreateEntry("BuildGridExtraTiles", 24, "Extra build tiles",
+                "How much floor the workshop upgrade adds on top of the RV's own 32 tiles. 0 makes the upgrade do nothing.");
+
+            _instantRepair = CreateEntry("InstantRepair", false, "Repair the RV instantly",
+                "Repairs the RV free of charge as soon as it is wrecked - no Marco, no questline. The upgrades still cost money.");
+            _repairTakesADay = CreateEntry("RepairTakesADay", false, "Repair takes a day",
+                "Marco takes the job and the RV is ready 24 in-game hours later; he texts you when it is done. Off = repaired on the spot.");
 #if DEBUG
             _destroyRvDebug = CreateEntry("DestroyRvDebug", false, "Destroy RV (debug, one-shot)",
                 "Toggle ON to manually wreck the RV so you can test the repair. Auto-resets to OFF.");
@@ -79,6 +108,19 @@ namespace RVRepairVan.Config
         internal static int BasePriceWithReferral => Mathf.Max(0, _basePriceWithReferral?.Value ?? 10000);
         internal static int MinSampleDiscount => Mathf.Max(0, _minSampleDiscount?.Value ?? 100);
         internal static int MaxSampleDiscount => Mathf.Max(MinSampleDiscount, _maxSampleDiscount?.Value ?? 500);
+
+        internal static bool UpgradesEnabled => _upgradesEnabled?.Value ?? true;
+        internal static int PriceGutInterior => Mathf.Max(0, _priceGutInterior?.Value ?? 2500);
+        internal static int PriceWorkshopFloor => Mathf.Max(0, _priceWorkshopFloor?.Value ?? 7500);
+        internal static int PriceCrewQuarters => Mathf.Max(0, _priceCrewQuarters?.Value ?? 15000);
+        internal static int PriceLoadingDock => Mathf.Max(0, _priceLoadingDock?.Value ?? 25000);
+        /// <summary>Employee capacity the crew upgrade grants. Clamped: 0 would leave the upgrade inert, and every
+        /// slot needs its own idle point, so a silly number just wastes transforms.</summary>
+        internal static int CrewSize => Mathf.Clamp(_crewSize?.Value ?? 3, 1, 10);
+        internal static int BuildGridExtraTiles => Mathf.Clamp(_buildGridExtraTiles?.Value ?? 24, 0, 200);
+
+        internal static bool InstantRepair => _instantRepair?.Value ?? false;
+        internal static bool RepairTakesADay => _repairTakesADay?.Value ?? false;
 
 #if DEBUG
         /// <summary>

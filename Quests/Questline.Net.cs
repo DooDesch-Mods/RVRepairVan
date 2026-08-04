@@ -89,6 +89,7 @@ namespace RVRepairVan.Quests
                     case RvOp.PayRepair: HostPayRepair(false); break;  // no cinematic on the host for a client's repair
                     case RvOp.CheckedRv: HostCheckedRv(); break;       // a client reached the post-repair RV
                     case RvOp.ErrandItemPicked: HostErrandItemPicked(); break;  // a client picked up the crate/package
+                    case RvOp.BuyUpgrade: Base.RvUpgrades.HostBuy((Base.RvUpgrade)m.A, false); break;   // client is already playing its own cinematic
                     case RvOp.RequestSnapshot: HostSendSnapshot(); break;
 #if DEBUG
                     case RvOp.Ping: Core.Log.Msg("[Net] host <- Ping " + m.A); break;
@@ -107,6 +108,7 @@ namespace RVRepairVan.Quests
                 {
                     case RvOp.StageSync: ApplyStageSync(m.A, m.B); break;
                     case RvOp.TransientSync: ApplyTransient(m.A, m.B, m.C); break;
+                    case RvOp.UpgradeSync: Base.RvUpgrades.ApplySync(m.A); break;
                     case RvOp.RepairApplied: ApplyRepair(); break;
 #if DEBUG
                     case RvOp.Ping: Core.Log.Msg("[Net] client <- Ping " + m.A); break;
@@ -123,8 +125,12 @@ namespace RVRepairVan.Quests
             NetworkBus.BroadcastToAll(RvOp.StageSync, Stage, DiscountTotal);
             HostBroadcastTransient();
             if (RepairStateStore.GetRepaired()) NetworkBus.BroadcastToAll(RvOp.RepairApplied);
+            // Send the build-out mask AFTER RepairApplied: the client applies the upgrades against the repaired
+            // RV, and the interior/grid modules only resolve once the intact model is the active one.
+            NetworkBus.BroadcastToAll(RvOp.UpgradeSync, Base.RvUpgrades.Mask);
             HostResyncErrandItem();
-            Core.LogDebug("[Net] host snapshot sent: Stage=" + Stage + " Discount=" + DiscountTotal + " Repaired=" + RepairStateStore.GetRepaired());
+            Core.LogDebug("[Net] host snapshot sent: Stage=" + Stage + " Discount=" + DiscountTotal
+                + " Repaired=" + RepairStateStore.GetRepaired() + " Upgrades=" + Base.RvUpgrades.Mask);
         }
 
         /// <summary>
@@ -285,6 +291,18 @@ namespace RVRepairVan.Quests
                 // Charge the shared pool synchronously (host = authoritative for money), then repair.
                 S1API.Money.Money.ChangeCashBalance(-price, true, true);
                 int paid = price;
+
+                // "Repair takes a day": Marco takes the job now and hands the RV back 24 in-game hours later.
+                // The money is already gone (charged above), which is the point - he has been paid for the work.
+                // Begin() returns false if the game clock is unreadable; then fall through to repairing on the spot
+                // rather than leaving the player out of pocket with nothing happening.
+                if (RVRepairVanPreferences.RepairTakesADay && Base.RvRepairJob.Begin())
+                {
+                    if (RVRepairVanPreferences.QuestlineEnabled) { Stage = Paid; SyncEntry(); }
+                    WorldSay(_marcoT, L10n.T("Leave her with me. Come back tomorrow and I'll text you when she's done."));
+                    Core.Log.Msg("[Net] host booked Marco's repair job for " + MoneyManager.FormatAmount(paid) + ".");
+                    return;
+                }
 
                 Action commit = () =>
                 {

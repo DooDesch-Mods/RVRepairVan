@@ -132,9 +132,19 @@
       <HintPath>$(GameManagedPath)/UnityEngine.AudioModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <!-- BoxCollider: the invisible slabs the crew NavMesh bake needs geometry from -->
+    <Reference Include="UnityEngine.PhysicsModule">
+      <HintPath>$(GameManagedPath)/UnityEngine.PhysicsModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <!-- NavMesh sampling: needed to tell whether the RV interior is walkable for employees -->
     <Reference Include="UnityEngine.AIModule">
       <HintPath>$(GameManagedPath)/UnityEngine.AIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- NavMeshSurface / runtime bake for the crew quarters (vanilla never bakes at runtime) -->
+    <Reference Include="Unity.AI.Navigation">
+      <HintPath>$(GameManagedPath)/Unity.AI.Navigation.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>

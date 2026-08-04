@@ -72,6 +72,16 @@ namespace RVRepairVan.Quests
 
         // Sample picker: one Marco dialogue choice per packaged product the player holds (so they choose WHICH to
         // hand over). Capped at the hotbar size; _sampleSlots is the live snapshot the choices/handler index into.
+        // Marco's build-out shop. Order matters only for the display order of the choices - the prerequisites
+        // themselves live in RvUpgrades.
+        private static readonly Base.RvUpgrade[] UpgradeOrder =
+        {
+            Base.RvUpgrade.GutInterior, Base.RvUpgrade.WorkshopFloor,
+            Base.RvUpgrade.CrewQuarters, Base.RvUpgrade.LoadingDock,
+        };
+        private static readonly DialogueController.DialogueChoice[] _upgradeChoices =
+            new DialogueController.DialogueChoice[4];
+
         private const int MAX_SAMPLE_CHOICES = 8;
         private static readonly DialogueController.DialogueChoice[] _sampleChoices = new DialogueController.DialogueChoice[MAX_SAMPLE_CHOICES];
         private static readonly System.Collections.Generic.List<ItemSlot> _sampleSlots = new System.Collections.Generic.List<ItemSlot>();
@@ -161,6 +171,7 @@ namespace RVRepairVan.Quests
             _injectedDegraded = false;
 #endif
             _marcoRepairChoice = null;
+            System.Array.Clear(_upgradeChoices, 0, _upgradeChoices.Length);
             System.Array.Clear(_sampleChoices, 0, _sampleChoices.Length);
             _sampleSlots.Clear();
             RepairStateStore.ResetClient();   // co-op client mirror starts clean each scene load (host re-sends snapshot)
@@ -491,6 +502,15 @@ namespace RVRepairVan.Quests
             // Persistent reminder once trust is earned: tells players (who may have skipped the dialogue) HOW to
             // keep lowering the price. Shows whenever they're NOT currently holding product to hand over (when they
             // are, the "Give Marco a packaged sample" action is visible instead), until paid or the floor is hit.
+            // Marco's build-out shop: offered once the RV is standing again, in both quest modes. Each entry keeps
+            // a live price label like the repair choice, so a settings change updates it without a restart.
+            for (int u = 0; u < UpgradeOrder.Length; u++)
+            {
+                Base.RvUpgrade up = UpgradeOrder[u];
+                _upgradeChoices[u] = AddChoice(marco, Base.RvUpgrades.ChoiceText(up), 93 - u,
+                    () => Base.RvUpgrades.Available(up), () => Base.RvUpgrades.Buy(up));
+            }
+
             AddChoice(marco, L10n.T("What can I bring to lower the price?"), 94,
                 () => Active && Trusted_ && Stage < Paid && !HoldingPackaged() && CurrentPrice() > RVRepairVanPreferences.RepairPrice,
                 bringInfoC != null ? null : (Action)(() => WorldSay(_marcoT, L10n.T("Bring me packaged product - sealed stuff, not raw. Every piece I take knocks its value off the bill, up to five hundred a pop, right down to my floor."))),
@@ -1387,9 +1407,20 @@ namespace RVRepairVan.Quests
             return null;
         }
 
+        /// <summary>Say a line as Marco in the world. Used by the upgrade shop, which lives outside this class but
+        /// speaks with Marco's voice and needs his transform, resolved here during NPC injection.</summary>
+        internal static void SayMarco(string line) => WorldSay(_marcoT, line);
+
         private static void RefreshRepairChoice()
         {
             try { if (_marcoRepairChoice != null) _marcoRepairChoice.ChoiceText = RepairChoiceText(); }
+            catch { }
+            // The build-out prices are settings too - keep their labels in step with the repair price.
+            try
+            {
+                for (int i = 0; i < _upgradeChoices.Length && i < UpgradeOrder.Length; i++)
+                    if (_upgradeChoices[i] != null) _upgradeChoices[i].ChoiceText = Base.RvUpgrades.ChoiceText(UpgradeOrder[i]);
+            }
             catch { }
         }
 

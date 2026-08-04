@@ -22,13 +22,23 @@ namespace RVRepairVan.Dialogue
         private static bool _injected;
         private static DialogueController.DialogueChoice _repairChoice;
 
+        // Marco sells the same build-outs in Simple mode; only the repair itself skips the story.
+        private static readonly Base.RvUpgrade[] UpgradeOrder =
+        {
+            Base.RvUpgrade.GutInterior, Base.RvUpgrade.WorkshopFloor,
+            Base.RvUpgrade.CrewQuarters, Base.RvUpgrade.LoadingDock,
+        };
+        private static readonly DialogueController.DialogueChoice[] _upgradeChoices =
+            new DialogueController.DialogueChoice[4];
+
         internal static void Reset()
         {
             _injected = false;
             _repairChoice = null;
+            Array.Clear(_upgradeChoices, 0, _upgradeChoices.Length);
         }
 
-        /// <summary>Update the visible choice label to the current price (live, no restart).</summary>
+        /// <summary>Update the visible choice labels to the current prices (live, no restart).</summary>
         internal static void RefreshPrice()
         {
             try
@@ -37,6 +47,8 @@ namespace RVRepairVan.Dialogue
                 {
                     _repairChoice.ChoiceText = BuildChoiceText();
                 }
+                for (int i = 0; i < _upgradeChoices.Length && i < UpgradeOrder.Length; i++)
+                    if (_upgradeChoices[i] != null) _upgradeChoices[i].ChoiceText = Base.RvUpgrades.ChoiceText(UpgradeOrder[i]);
             }
             catch (Exception e)
             {
@@ -96,8 +108,27 @@ namespace RVRepairVan.Dialogue
                 choice.onChoosen.AddListener((Action)OnRepairChosen);
 
                 dc.AddDialogueChoice(choice, 100);
-
                 _repairChoice = choice;
+
+                // The build-outs are sold in Simple mode too - only the REPAIR is simple here, not the RV.
+                for (int u = 0; u < UpgradeOrder.Length; u++)
+                {
+                    Base.RvUpgrade up = UpgradeOrder[u];
+                    var uc = new DialogueController.DialogueChoice
+                    {
+                        Enabled = true,
+                        ChoiceText = Base.RvUpgrades.ChoiceText(up),
+                        Conversation = null,
+                        Priority = 93 - u
+                    };
+                    Func<bool, bool> show = (_) => { try { return Base.RvUpgrades.Available(up); } catch { return false; } };
+                    uc.shouldShowCheck = DelegateSupport.ConvertDelegate<DialogueController.DialogueChoice.ShouldShowCheck>(show);
+                    uc.onChoosen = new UnityEvent();
+                    uc.onChoosen.AddListener((Action)(() => Base.RvUpgrades.Buy(up)));
+                    dc.AddDialogueChoice(uc, 93 - u);
+                    _upgradeChoices[u] = uc;
+                }
+
                 _injected = true;
                 Core.Log.Msg("[Marco] RV repair dialogue injected.");
             }

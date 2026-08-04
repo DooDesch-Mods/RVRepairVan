@@ -17,6 +17,7 @@ namespace RVRepairVan.Effects
     {
         private const float FadeTime = 0.6f;
         private const float HoldTime = 2.5f;       // OnMidHold fires at the midpoint (~1.25s) - inside the WAV's quiet gap (~1.05-1.70s)
+        private const float UpgradeHoldTime = 1.6f;   // build-outs are a smaller job, and the player sees them repeatedly
         private const float SoundVolume = 0.2f;    // repair clanks sit UNDER Marco's voice (tune to taste)
 
         private const string Key = "RV.Repair";
@@ -42,6 +43,28 @@ namespace RVRepairVan.Effects
                 DuringBlack = () => { PlaySound(); Safe(doWhileBlack); },  // repair clanks + RV swap, hidden behind the black
                 OnMidHold = onMidHold,             // Marco grunts / hurts himself mid-repair (~1.25s)
                 OnDone = onDone,                   // Marco's completion line
+                Key = Key,
+            });
+        }
+
+        /// <summary>
+        /// Shorter variant for Marco's RV build-outs. Same hard cut and the same working sound, but a briefer hold:
+        /// bolting a floor in is a smaller job than resurrecting a burnt-out shell, and the player will see this
+        /// one up to four times. Passing null for <paramref name="doWhileBlack"/> makes it a pure visual - that is
+        /// the co-op client case, where the host's broadcast applies the actual change.
+        /// </summary>
+        internal static void PlayUpgrade(Action doWhileBlack, Action onDone)
+        {
+            ScreenTransition.Play(new TransitionRequest
+            {
+                Mechanism = VeilMode.Black,
+                CloseSeconds = FadeTime,
+                OpenSeconds = FadeTime,
+                HoldSeconds = UpgradeHoldTime,
+                LockMovement = true,
+                LockCamera = true,
+                DuringBlack = () => { PlaySound(); Safe(doWhileBlack); },
+                OnDone = onDone,
                 Key = Key,
             });
         }

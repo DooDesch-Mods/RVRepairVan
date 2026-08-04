@@ -45,7 +45,8 @@ namespace RVRepairVan.Patches
             if (parts.Length == 0) return false;
             string cmd = parts[0].ToLower();
             if (cmd != "rvtest" && cmd != "rvstage" && cmd != "rvdrops" && cmd != "rvclear"
-                && cmd != "rvgiveclient" && cmd != "rvdiag" && cmd != "rvreinject" && cmd != "rvprobe")
+                && cmd != "rvgiveclient" && cmd != "rvdiag" && cmd != "rvreinject" && cmd != "rvprobe"
+                && cmd != "rvupg" && cmd != "rvrepair")
                 return false;   // not ours - let the game handle it
 
             // Both overloads can fire for a single submission (the string body calls the List body), so run the
@@ -78,6 +79,21 @@ namespace RVRepairVan.Patches
                         break;
                     case "rvprobe":   // measure the RV property: idle points, capacity, docks, grids, NavMesh
                         RvProbe.Run();
+                        break;
+                    case "rvrepair":  // put the RV back together without paying Marco, so the build-outs are testable
+                        if (RVRepairVan.Managers.RVManager.Repair())
+                        {
+                            RVRepairVan.Persistence.RepairStateStore.SetRepaired(true);
+                            RVRepairVan.Persistence.RepairStateStore.SetRepairStartedAt(0);
+                            Core.Log.Msg("[Debug] rvrepair: RV repaired and marked as paid for.");
+                        }
+                        else Core.Log.Warning("[Debug] rvrepair: repair call failed (is the RV loaded?).");
+                        break;
+                    case "rvupg":     // 'rvupg' dumps the build-out state; 'rvupg <mask>' grants/revokes (host)
+                        if (parts.Length > 1 && int.TryParse(parts[1], out int mask))
+                            RVRepairVan.Base.RvUpgrades.DebugSetMask(mask);
+                        else
+                            RVRepairVan.Base.RvUpgrades.DebugDump();
                         break;
                     case "rvreinject":   // 'rvreinject degraded' exercises the no-container fallback (adds duplicates)
                         RVRepairVan.Quests.Questline.DebugReinject(parts.Length > 1 && parts[1].ToLower() == "degraded");
