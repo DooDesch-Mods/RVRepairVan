@@ -50,36 +50,71 @@ namespace RVRepairVan.Base
         }
 
         /// <summary>
-        /// Set just the capacity and the idle points, as early as the save tells us the crew quarters are paid
-        /// for. This runs from RepairSave.OnLoaded because the game's employee loader restores a property's crew
-        /// by re-running CreateEmployee_Server, which refuses while <c>Employees.Count >= EmployeeCapacity</c>.
-        /// Applying the capacity with the rest of the build-out (a couple of seconds later, once the RV has been
-        /// repaired) is too late: the employees have already been skipped.
+        /// Give the RV its idle points and capacity while the property is being loaded, BEFORE the game restores
+        /// that property's employees.
         ///
-        /// The NavMesh bake is deliberately NOT done here - it needs the repaired RV, and the normal apply pass
-        /// picks it up shortly afterwards.
+        /// This is the whole fix for "the crew is gone after a reload". The game restores a property's employees
+        /// through <c>EmployeeManager.CreateEmployee_Server</c>, which refuses while
+        /// <c>Employees.Count &gt;= EmployeeCapacity</c> - and the RV ships with capacity 0. Applying our capacity
+        /// with the rest of the build-out (seconds later, once the RV is repaired) was far too late; so was doing
+        /// it from a default S1API Saveable, which loads after the base game. <see cref="Persistence.RepairSave"/>
+        /// now declares <c>BeforeBaseGame</c>, so the paid-for mask is already known when this runs.
+        ///
+        /// <paramref name="savedEmployeeCount"/> is the migration path: a save that already contains RV employees
+        /// proves the upgrade was bought at some point, so make room for them even if the mask says otherwise
+        /// (older saves, a wiped mod-data folder). It cannot be abused - the employees have to be in the save file
+        /// already, and this only ever runs while that file is being read.
+        ///
+        /// Employee identity, GUIDs, paid state, job configuration, firing and replication all stay with vanilla.
+        /// The NavMesh bake is deliberately not done here; it needs the repaired RV and the normal apply pass
+        /// picks it up moments later.
         /// </summary>
-        internal static void ApplyCapacityEarly()
+        internal static void ProvisionForLoad(Property prop, int savedEmployeeCount)
         {
             try
             {
-                if (!RVRepairVanPreferences.UpgradesEnabled) return;
-                if (!RvUpgrades.Owned(RvUpgrade.CrewQuarters)) return;
+                if (prop == null || !RVRepairVanPreferences.UpgradesEnabled) return;
 
-                Transform root = RVManager.Root;
-                Property prop = root != null ? root.GetComponent<Property>() : null;
-                if (prop == null) return;
+                bool owned = RvUpgrades.Owned(RvUpgrade.CrewQuarters);
+                if (!owned && savedEmployeeCount <= 0) return;
 
-                int size = RVRepairVanPreferences.CrewSize;
+                int size = Mathf.Max(owned ? RVRepairVanPreferences.CrewSize : 0, savedEmployeeCount);
+                if (size <= 0) return;
+
+                Transform root = ((Component)prop).transform;
                 BuildIdlePoints(root, prop, size);
+
+                // Capacity LAST - Employee.AssignProperty indexes EmployeeIdlePoints[EmployeeIndex] unguarded, so
+                // room without a point to stand on is a crash during the load.
                 if (prop.EmployeeIdlePoints != null && prop.EmployeeIdlePoints.Length >= size)
                 {
                     prop.EmployeeCapacity = size;
-                    CrewUnlocked = true;
-                    Core.Log.Msg("[Crew] capacity raised early to " + size + " so the saved crew can load.");
+                    if (owned) CrewUnlocked = true;
+                    Core.Log.Msg("[Crew] provisioned the RV for loading - capacity=" + size
+                        + " (owned=" + owned + ", saved crew=" + savedEmployeeCount + ").");
                 }
+                else Core.Log.Warning("[Crew] could not build idle points during load - the saved crew may be dropped.");
             }
-            catch (Exception e) { Core.Log.Warning("[Crew] early capacity failed: " + e.Message); }
+            catch (Exception e) { Core.Log.Warning("[Crew] load provisioning failed: " + e.Message); }
+        }
+
+        /// <summary>
+        /// Make sure the RV has an idle-point array on EVERY peer, without granting hiring authority.
+        /// A joining client never runs the host's loaders - it receives employees through replication, and
+        /// <c>Employee.AssignProperty</c> then indexes <c>EmployeeIdlePoints</c> on the client too. That can happen
+        /// before our UpgradeSync arrives, so the array has to exist regardless of what the client knows yet.
+        /// Capacity stays untouched here; only the host decides who may be hired.
+        /// </summary>
+        internal static void EnsureIdlePointsForPeer(Property prop)
+        {
+            try
+            {
+                if (prop == null) return;
+                int size = Mathf.Max(RVRepairVanPreferences.CrewSize, prop.EmployeeCapacity);
+                if (prop.EmployeeIdlePoints != null && prop.EmployeeIdlePoints.Length >= size) return;
+                BuildIdlePoints(((Component)prop).transform, prop, size);
+            }
+            catch (Exception e) { Core.LogDebug("[Crew] peer idle points: " + e.Message); }
         }
 
         internal static void Apply()
@@ -336,6 +371,54 @@ namespace RVRepairVan.Base
             if (boxes == null) return;
             foreach (BoxCollider c in boxes)
                 if (c != null) UnityEngine.Object.Destroy(c);
+        }
+    }
+
+    /// <summary>
+    /// Provision the RV just before the game loads that property's employees.
+    ///
+    /// <c>PropertyManager.LoadProperty</c> only applies the base property data and returns; the employee loop runs
+    /// afterwards inside <c>PropertyLoader.Load</c> (both the current and the legacy layout). A postfix here is
+    /// therefore the last moment that is still early enough, and it has the saved <c>PropertyData</c> in hand -
+    /// which is what makes the migration fallback possible.
+    /// </summary>
+    [HarmonyPatch(typeof(PropertyManager), nameof(PropertyManager.LoadProperty))]
+    internal static class Rv_LoadProperty_Patch
+    {
+        private static void Postfix(Il2CppScheduleOne.Persistence.Datas.PropertyData propertyData)
+        {
+            try
+            {
+                if (propertyData == null || propertyData.PropertyCode != "rv") return;
+
+                PropertyManager pm = Singleton<PropertyManager>.Instance;
+                Property rv = pm != null ? pm.GetProperty("rv") : null;
+                if (rv == null) return;
+
+                int saved = propertyData.Employees != null ? propertyData.Employees.Length : 0;
+                RvCrew.ProvisionForLoad(rv, saved);
+            }
+            catch (Exception e) { Core.Log.Warning("[Crew] LoadProperty postfix: " + e.Message); }
+        }
+    }
+
+    /// <summary>
+    /// Guarantee the RV's idle-point array exists before an employee is bound to it, on every peer.
+    /// <c>Employee.AssignProperty</c> indexes <c>EmployeeIdlePoints[EmployeeIndex]</c> with no bounds check, and on
+    /// a joining client that call comes from replication - potentially before the client has been told which
+    /// upgrades were bought. Filling the array is harmless and costs nothing; capacity is untouched.
+    /// </summary>
+    [HarmonyPatch(typeof(Il2CppScheduleOne.Employees.Employee), nameof(Il2CppScheduleOne.Employees.Employee.AssignProperty))]
+    internal static class Rv_AssignProperty_Patch
+    {
+        private static void Prefix(Property prop)
+        {
+            try
+            {
+                if (prop == null || prop.PropertyCode != "rv") return;
+                RvCrew.EnsureIdlePointsForPeer(prop);
+            }
+            catch (Exception e) { Core.LogDebug("[Crew] AssignProperty prefix: " + e.Message); }
         }
     }
 

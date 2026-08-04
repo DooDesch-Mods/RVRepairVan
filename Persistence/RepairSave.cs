@@ -21,6 +21,15 @@ namespace RVRepairVan.Persistence
         // The questline waits for this so it never acts on stale/unloaded state right after a scene load.
         internal static bool Loaded { get; private set; }
 
+        /// <summary>
+        /// Load BEFORE the base game's own loaders. The default (AfterBaseGame) is too late for the RV crew: the
+        /// game restores a property's employees through EmployeeManager.CreateEmployee_Server, which refuses while
+        /// Employees.Count >= EmployeeCapacity - so by the time we learned the crew quarters were paid for, the
+        /// employees had already been dropped. Loading early means the upgrade mask is known before the first
+        /// vanilla load request runs, which is what lets RvCrew provision the RV in time.
+        /// </summary>
+        public override SaveableLoadOrder LoadOrder => SaveableLoadOrder.BeforeBaseGame;
+
         // One file per field (S1API serialises each [SaveableField] separately) - primitives keep IL2CPP JSON
         // reflection trivial and risk-free. Names must not be "QuestData" (reserved by the API).
         [SaveableField("rv_repaired")] private bool _repaired;
@@ -74,13 +83,6 @@ namespace RVRepairVan.Persistence
             Instance = this;
             Loaded = true;
             Core.Log.Msg($"[State] loaded: repaired={_repaired} stage={_stage} samples={_samples} discount={_discount} upgrades={_upgrades}");
-
-            // Raise the RV's employee capacity NOW, at the earliest moment the paid-for mask is known. The game's
-            // own employee loader re-runs CreateEmployee_Server, which refuses while Employees.Count >=
-            // EmployeeCapacity - so a capacity applied later (with the rest of the build-out) comes too late and
-            // the crew is silently dropped on every load. Measured: employees=1 before a reload, 0 after.
-            try { RVRepairVan.Base.RvCrew.ApplyCapacityEarly(); }
-            catch (System.Exception e) { Core.Log.Warning("[State] early crew capacity failed: " + e.Message); }
         }
 
         // No mod data for this save yet (fresh save / first time / a save from before the mod) -> clean defaults.
