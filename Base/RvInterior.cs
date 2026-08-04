@@ -37,6 +37,17 @@ namespace RVRepairVan.Base
             "Cabinet.004", "Cabinet.004 (1)",
         };
 
+        // Loose props parented straight to the model root (RV/RV), a level above even Main. This is the clutter
+        // that is actually visible standing inside: the tarp on the floor, the bedside table, the radio, the vase,
+        // the plant and the leftovers of somebody's lunch.
+        // NOT touched: 'rv' (the vehicle itself), 'Container' (where placed buildables live), 'Pot location',
+        // the triggers, the audio zone and the occlusion area.
+        private static readonly string[] RootProps =
+        {
+            "SM_Prop_Tarp_Generic_01", "Bedside_Table", "SM_Item_Radio_01", "Vase", "Ashtray",
+            "SM_Prop_Plant_02", "Can_Cuke", "Cuke_Crushed_Junk", "Water Bottle",
+        };
+
         private const string MainPath = "rv/Main";
         private const string InteriorPath = "rv/Main/Interior";
 
@@ -81,6 +92,14 @@ namespace RVRepairVan.Base
                 }
                 else Core.Log.Warning("[Interior] '" + MainPath + "' not found under the RV model.");
 
+                foreach (string name in RootProps)
+                {
+                    Transform t = model.Find(name);
+                    if (t == null) continue;
+                    Remember("Root/" + name, t.gameObject.activeSelf);
+                    if (t.gameObject.activeSelf) { t.gameObject.SetActive(false); hidden++; }
+                }
+
                 _applied = true;
                 Core.Log.Msg("[Interior] gutted - " + hidden + " object(s) hidden.");
             }
@@ -105,6 +124,11 @@ namespace RVRepairVan.Base
                 {
                     Transform t = main != null ? main.Find(name) : null;
                     if (t != null && _original.TryGetValue("Main/" + name, out bool was)) t.gameObject.SetActive(was);
+                }
+                foreach (string name in RootProps)
+                {
+                    Transform t = model.Find(name);
+                    if (t != null && _original.TryGetValue("Root/" + name, out bool was)) t.gameObject.SetActive(was);
                 }
                 _applied = false;
                 Core.Log.Msg("[Interior] restored to its original state.");

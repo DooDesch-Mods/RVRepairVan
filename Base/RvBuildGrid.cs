@@ -122,6 +122,15 @@ namespace RVRepairVan.Base
                             int cx = template.x + dx, cz = template.y + dz;
                             var coord = new Coordinate(cx, cz);
                             if (grid.GetTile(coord) != null) continue;   // already covered
+
+                            // Only lay floor that is actually inside the RV. A tile outside the property's bounds
+                            // is unusable in the build UI and just looks like the grid leaks through the wall -
+                            // a first version happily cloned five of those into the street.
+                            Vector3 world = grid.transform.TransformPoint(new Vector3(cx * size, 0f, cz * size));
+                            bool inside;
+                            try { inside = prop.DoBoundsContainPoint(world); } catch { inside = true; }
+                            if (!inside) continue;
+
                             if (CloneTile(grid, template, cx, cz, size, offset)) added++;
                         }
 

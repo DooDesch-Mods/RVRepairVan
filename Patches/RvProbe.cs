@@ -103,6 +103,30 @@ namespace RVRepairVan.Patches
 
                 // Also sweep the hierarchy: a grid parented under the RV but not registered on the Property would
                 // not show above, and that difference decides whether the workshop-floor tier can reuse it.
+                // Where do the tiles actually sit, and does the property's bounding box still contain them? A tile
+                // outside the RV reads as unplaceable ("red") in the build UI, which is the first thing to rule
+                // out when the floor looks blocked.
+                if (grids != null)
+                    for (int i = 0; i < grids.Count; i++)
+                    {
+                        Grid g = grids[i];
+                        if (g == null || g.Tiles == null) continue;
+                        int outside = 0, occupied = 0;
+                        Vector3 min = Vector3.one * 9999f, max = Vector3.one * -9999f;
+                        for (int k = 0; k < g.Tiles.Count; k++)
+                        {
+                            Tile tl = g.Tiles[k];
+                            if (tl == null) continue;
+                            Vector3 p = tl.transform.position;
+                            min = Vector3.Min(min, p); max = Vector3.Max(max, p);
+                            try { if (!prop.DoBoundsContainPoint(p)) outside++; } catch { }
+                            try { if (tl.BuildableOccupants != null && tl.BuildableOccupants.Count > 0) occupied++; } catch { }
+                        }
+                        Core.Log.Msg("[Probe]   grid[" + i + "] tile extent x " + min.x.ToString("F1") + ".." + max.x.ToString("F1")
+                            + "  z " + min.z.ToString("F1") + ".." + max.z.ToString("F1") + "  y " + min.y.ToString("F2")
+                            + "   outsideBounds=" + outside + " occupied=" + occupied);
+                    }
+
                 var inChildren = root.GetComponentsInChildren<Grid>(true);
                 Core.Log.Msg("[Probe] grids under the RV hierarchy=" + (inChildren != null ? inChildren.Length : 0));
                 if (inChildren != null)
