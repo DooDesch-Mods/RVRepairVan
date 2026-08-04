@@ -74,7 +74,11 @@ namespace RVRepairVan.Base
                 }
 
                 int extra = RVRepairVanPreferences.BuildGridExtraTiles;
-                if (extra > 0) ExpandGrid(prop, extra);
+                if (extra > 0)
+                {
+                    ExpandGrid(prop, extra);
+                    RetireSecondGrid(prop);
+                }
 
                 // Latch only once the work is actually done, so a failed pass is retried rather than swallowed.
                 _applied = true;
@@ -85,11 +89,17 @@ namespace RVRepairVan.Base
         }
 
         /// <summary>
-        /// Optional extension: clone an existing tile outward in rings around the grid's own tiles. A cloned tile
-        /// only counts as real once it is in all four of the grid's books - <c>_coordinateToTile</c> (what GetTile
-        /// reads), <c>Tiles</c>, <c>CoordinateTilePairs</c> and <c>RegisterTile</c> - so all four are written, each
-        /// guarded on its own: a half-registered tile is worse than a skipped one.
-        /// Only runs when the player raises BuildGridExtraTiles above 0.
+        /// Lay a CONTIGUOUS floor across the whole cabin, on one grid.
+        ///
+        /// The first version cloned tiles in rings around an arbitrary template tile, which produced a small island
+        /// of tiles near that grid's origin and bare floor everywhere else. In the build UI that reads as "I can't
+        /// place anything": a 2x2 machine needs four adjacent valid tiles, and outside the island there were none.
+        /// The RV also ships TWO grid objects at different origins, so what tiles did exist looked like separate
+        /// rasters rather than one floor.
+        ///
+        /// So: sweep the whole coordinate rectangle the property's bounds cover and fill every hole, all on grid 0.
+        /// A cloned tile only counts once it is in the grid's books - RegisterTile writes Tiles and
+        /// CoordinateTilePairs, and _coordinateToTile (what GetTile reads) has to be written separately.
         /// </summary>
         private static void ExpandGrid(Property prop, int extra)
         {
@@ -109,35 +119,129 @@ namespace RVRepairVan.Base
                 Tile template = grid.Tiles[0];
                 if (template == null) return;
                 float size = Grid.TileSize;          // static on Grid, not per-instance
+                if (size <= 0.01f) { Core.Log.Warning("[Grid] tile size is " + size + " - cannot lay a floor."); return; }
                 float offset = template.AvailableOffset;
 
-                // Rings around the template keep new tiles adjacent to the existing floor instead of trailing off
-                // in one direction. Eight rings is far more than BuildGridExtraTiles' cap could ever need.
-                int added = 0;
-                for (int ring = 1; ring <= 8 && added < extra; ring++)
-                    for (int dx = -ring; dx <= ring && added < extra; dx++)
-                        for (int dz = -ring; dz <= ring && added < extra; dz++)
-                        {
-                            if (Mathf.Abs(dx) != ring && Mathf.Abs(dz) != ring) continue;   // walk the ring edge only
-                            int cx = template.x + dx, cz = template.y + dz;
-                            var coord = new Coordinate(cx, cz);
-                            if (grid.GetTile(coord) != null) continue;   // already covered
+                // How far the property reaches, expressed in this grid's own tile steps. Generous on purpose - the
+                // per-tile bounds test below is what actually decides, this only bounds the search.
+                int reach = 24;
+                try
+                {
+                    Collider box = prop.BoundingBox != null ? prop.BoundingBox.GetComponent<Collider>() : null;
+                    Vector3 ext = box != null ? box.bounds.size : Vector3.one * 12f;
+                    reach = Mathf.Clamp(Mathf.CeilToInt(Mathf.Max(ext.x, ext.z) / size) + 2, 4, 48);
+                }
+                catch { }
 
-                            // Only lay floor that is actually inside the RV. A tile outside the property's bounds
-                            // is unusable in the build UI and just looks like the grid leaks through the wall -
-                            // a first version happily cloned five of those into the street.
-                            Vector3 world = grid.transform.TransformPoint(new Vector3(cx * size, 0f, cz * size));
-                            bool inside;
-                            try { inside = prop.DoBoundsContainPoint(world); } catch { inside = true; }
-                            if (!inside) continue;
+                Bounds? cabin = CabinFloorBounds();
+                int added = 0, skippedOutside = 0;
+                for (int cx = template.x - reach; cx <= template.x + reach && added < extra; cx++)
+                    for (int cz = template.y - reach; cz <= template.y + reach && added < extra; cz++)
+                    {
+                        if (grid.GetTile(new Coordinate(cx, cz)) != null) continue;   // already covered
 
-                            if (CloneTile(grid, template, cx, cz, size, offset)) added++;
-                        }
+                        // Only lay floor that is actually on the cabin floor. The property's own bounding box is
+                        // far too generous - it covers the ground around the RV as well, so testing against it
+                        // still pushed tiles out through the wall (measured extent reached x 18.7 on a vehicle
+                        // that ends near 16.2). The floor MESH is the honest boundary.
+                        Vector3 world = grid.transform.TransformPoint(new Vector3(cx * size, 0f, cz * size));
+                        bool inside = cabin.HasValue
+                            ? cabin.Value.Contains(new Vector3(world.x, cabin.Value.center.y, world.z))
+                            : SafeInBounds(prop, world);
+                        if (!inside) { skippedOutside++; continue; }
+
+                        if (CloneTile(grid, template, cx, cz, size, offset)) added++;
+                    }
+
+                if (added >= extra)
+                    Core.Log.Warning("[Grid] hit the BuildGridExtraTiles cap of " + extra
+                        + " - raise it if parts of the floor are still bare.");
+                Core.LogDebug("[Grid] fill: reach=" + reach + " tileSize=" + size + " outsideBounds=" + skippedOutside);
 
                 _clonedTiles += added;
                 Core.Log.Msg("[Grid] added " + added + " extra tile(s) (requested " + extra + ").");
             }
             catch (Exception e) { Core.Log.Warning("[Grid] expand failed: " + e.Message); }
+        }
+
+        /// <summary>
+        /// The RV ships two grid objects at different origins. Once grid 0 covers the whole cabin they overlap,
+        /// and two rasters over one floor is both confusing to look at and a source of placement conflicts.
+        /// Retire the second one - but only while nothing is standing on it, so this can never delete a player's
+        /// equipment.
+        /// </summary>
+        private static void RetireSecondGrid(Property prop)
+        {
+            try
+            {
+                var grids = prop.Grids;
+                if (grids == null || grids.Count < 2) return;
+                for (int i = 1; i < grids.Count; i++)
+                {
+                    Grid g = grids[i];
+                    if (g == null || !g.gameObject.activeSelf) continue;
+
+                    bool occupied = false;
+                    if (g.Tiles != null)
+                        for (int k = 0; k < g.Tiles.Count && !occupied; k++)
+                        {
+                            Tile t = g.Tiles[k];
+                            if (t != null && t.BuildableOccupants != null && t.BuildableOccupants.Count > 0) occupied = true;
+                        }
+
+                    if (occupied) { Core.LogDebug("[Grid] '" + g.name + "' still has items on it - leaving it alone."); continue; }
+                    g.gameObject.SetActive(false);
+                    Core.Log.Msg("[Grid] retired the RV's second grid '" + g.name + "' - one continuous floor now.");
+                }
+            }
+            catch (Exception e) { Core.Log.Warning("[Grid] retiring the second grid failed: " + e.Message); }
+        }
+
+        /// <summary>
+        /// The area the game itself considers placeable: the bounding rectangle of the tiles the RV already ships,
+        /// across both of its grids. Self-calibrating and impossible to leak out of, which the alternatives were
+        /// not - the property's bounding box also covers the ground around the vehicle (tiles reached x 18.7), and
+        /// the Floor mesh turned out to be wider than the cabin as well (x 7.7 to 18.2). The developers put those
+        /// 32 tiles exactly where equipment fits, so filling the gaps between them is the honest interpretation of
+        /// "extend the floor".
+        ///
+        /// Must be read BEFORE anything is cloned, or it grows with its own output.
+        /// </summary>
+        private static Bounds? CabinFloorBounds()
+        {
+            try
+            {
+                Property prop = PropertyOf();
+                var grids = prop != null ? prop.Grids : null;
+                if (grids == null || grids.Count == 0) return null;
+
+                bool any = false;
+                Bounds b = default;
+                for (int i = 0; i < grids.Count; i++)
+                {
+                    Grid g = grids[i];
+                    if (g == null || g.Tiles == null) continue;
+                    for (int k = 0; k < g.Tiles.Count; k++)
+                    {
+                        Tile t = g.Tiles[k];
+                        if (t == null) continue;
+                        Vector3 p = t.transform.position;
+                        if (!any) { b = new Bounds(p, Vector3.zero); any = true; } else b.Encapsulate(p);
+                    }
+                }
+                if (!any) return null;
+
+                // One tile of slack so the rectangle includes the outer tile centres themselves, plus a generous y.
+                float pad = Mathf.Max(Grid.TileSize, 0.5f);
+                b.Expand(new Vector3(pad, 10f, pad));
+                return b;
+            }
+            catch { return null; }
+        }
+
+        private static bool SafeInBounds(Property prop, Vector3 world)
+        {
+            try { return prop.DoBoundsContainPoint(world); } catch { return true; }
         }
 
         private static bool CloneTile(Grid grid, Tile template, int cx, int cz, float size, float offset)

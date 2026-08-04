@@ -70,8 +70,8 @@ namespace RVRepairVan.Config
                 "Adds a delivery dock so suppliers can drop orders at the RV.");
             _crewSize = CreateEntry("CrewSize", 3, "Crew size",
                 "How many employees the RV can hold once the crew quarters are built.");
-            _buildGridExtraTiles = CreateEntry("BuildGridExtraTiles", 24, "Extra build tiles",
-                "How much floor the workshop upgrade adds on top of the RV's own 32 tiles. 0 makes the upgrade do nothing.");
+            _buildGridExtraTiles = CreateEntry("BuildGridExtraTiles", 96, "Extra build tiles (cap)",
+                "Upper limit for the tiles the workshop upgrade lays. It fills the whole cabin floor and stops here; raise it if any floor is left bare.");
 
             _instantRepair = CreateEntry("InstantRepair", false, "Repair the RV instantly",
                 "Repairs the RV free of charge as soon as it is wrecked - no Marco, no questline. The upgrades still cost money.");
@@ -117,7 +117,7 @@ namespace RVRepairVan.Config
         /// <summary>Employee capacity the crew upgrade grants. Clamped: 0 would leave the upgrade inert, and every
         /// slot needs its own idle point, so a silly number just wastes transforms.</summary>
         internal static int CrewSize => Mathf.Clamp(_crewSize?.Value ?? 3, 1, 10);
-        internal static int BuildGridExtraTiles => Mathf.Clamp(_buildGridExtraTiles?.Value ?? 24, 0, 200);
+        internal static int BuildGridExtraTiles => Mathf.Clamp(_buildGridExtraTiles?.Value ?? 96, 0, 400);
 
         internal static bool InstantRepair => _instantRepair?.Value ?? false;
         internal static bool RepairTakesADay => _repairTakesADay?.Value ?? false;
