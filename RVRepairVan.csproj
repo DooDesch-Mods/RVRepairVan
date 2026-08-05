@@ -67,6 +67,12 @@
     <Compile Remove="Workspace/**/*.cs" />
   </ItemGroup>
 
+  <!-- Generates DooDesch.ModVersion.Current from this project's own version property, so MelonInfo carries the
+       released version and cannot drift out of it. MUST come after the Workspace Remove so CI keeps the file. -->
+  <Import Project="$(MSBuildThisFileDirectory)../Workspace/build/ModVersion.props" Condition="Exists('$(MSBuildThisFileDirectory)../Workspace/build/ModVersion.props')" />
+  <Import Project="$(MSBuildThisFileDirectory)Workspace/build/ModVersion.props" Condition="Exists('$(MSBuildThisFileDirectory)Workspace/build/ModVersion.props')" />
+
+
   <!-- hash's shim: one file, no references, no hard dependency. It puts this mod's own console words into the
        game's command list so anything that lists commands can see them. Taken from the hash checkout beside this
        one when there is one, and from the workspace copy otherwise - CI checks out this repo alone.
