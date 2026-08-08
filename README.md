@@ -110,7 +110,7 @@ over the built-in texts.
 
 Translations can also be installed as their own mods (a code-less package shipping
 `Mods/Localization/RVRepairVan/<code>.json`) - and you can publish yours the same way.
-Step-by-step guides: the [ScheduleOne-L10n wiki](https://github.com/DooDesch-Mods/ScheduleOne-L10n/wiki).
+Step-by-step guides: the [ScheduleOne-L10n wiki](https://docs.doodesch.de/mods/l10n/).
 
 Debug-only toggles (Destroy RV, Add $10,000, Dump state, Play repair cinematic) exist only
 in development builds and are not shipped in the release.
