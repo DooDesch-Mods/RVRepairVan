@@ -46,16 +46,31 @@ jobs:
             6.0.x
             8.0.x
 
-      - name: Verify version in csproj matches the tag
+      # The tag is the ONLY place a release version is decided; the csproj keeps a 0.0.0-dev fallback it
+      # never bumps. See Workspace/docs/RELEASE-PROCESS.md, "Versioning". Both checks below run before
+      # anything is built, so a bad tag costs seconds rather than a published artefact.
+      - name: Preflight - tag shape and branch
         id: version-check
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
-          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
-          CS_VERSION=$(grep -oPm1 "(?<=<Version>)[^<]+" RVRepairVan.csproj)
-          if [ "$TAG_VERSION" != "$CS_VERSION" ]; then
-            echo "Version mismatch: Tag version is $TAG_VERSION, but csproj version is $CS_VERSION"
+          set -euo pipefail
+          TAG="${GITHUB_REF#refs/tags/}"
+
+          # The `v*` trigger is a glob, not a pattern check - it also matches v1.2, vNext and v1.2.3-rc1.
+          if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::Release tag must be exactly vX.Y.Z, got '$TAG'."
             exit 1
           fi
-          echo "version=$TAG_VERSION" >> $GITHUB_OUTPUT
+
+          # A tag on a feature branch would publish a version nobody can reproduce from the default branch.
+          git fetch --no-tags origin "$DEFAULT_BRANCH":"refs/remotes/origin/$DEFAULT_BRANCH"
+          if ! git merge-base --is-ancestor HEAD "refs/remotes/origin/$DEFAULT_BRANCH"; then
+            echo "::error::Tag $TAG is not on $DEFAULT_BRANCH. Merge first, then tag the commit on $DEFAULT_BRANCH."
+            exit 1
+          fi
+
+          echo "version=${TAG#v}" >> $GITHUB_OUTPUT
 
       - name: Extract release notes from CHANGELOG.md
         id: changelog
@@ -64,9 +79,16 @@ jobs:
           # this version; it is reused for the GitHub release body and the Nexus file description.
           VERSION="${{ steps.version-check.outputs.version }}"
           SECTION=$(awk -v v="$VERSION" 'index($0,"## ["v"]")==1{grab=1;next} index($0,"## [")==1{if(grab)exit} grab{print}' CHANGELOG.md)
-          if [ -z "$SECTION" ]; then
-            echo "::warning::No CHANGELOG.md section found for $VERSION"
-            SECTION="See CHANGELOG.md for details."
+          # Fatal, not a warning. This used to fall back to "See CHANGELOG.md for details." and publish that
+          # sentence as the release notes to GitHub, Thunderstore and Nexus at once.
+          if [ -z "$(printf '%s' "$SECTION" | tr -d '[:space:]')" ]; then
+            echo "::error::CHANGELOG.md has no non-empty '## [$VERSION]' section. Write the section, then re-tag."
+            exit 1
+          fi
+          HEADINGS=$(grep -c "^## \[$VERSION\]" CHANGELOG.md || true)
+          if [ "$HEADINGS" != "1" ]; then
+            echo "::error::CHANGELOG.md has $HEADINGS '## [$VERSION]' headings, expected exactly 1."
+            exit 1
           fi
           # Markdown notes - GitHub renders Markdown in release bodies.
           {
@@ -121,7 +143,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Build the project (Release, IL2CPP)
-        run: dotnet build RVRepairVan.csproj --configuration Release /p:WorkspaceLibPath="${{ github.workspace }}/Workspace/lib"
+        run: dotnet build RVRepairVan.csproj --configuration Release /p:Version="${{ steps.version-check.outputs.version }}" /p:WorkspaceLibPath="${{ github.workspace }}/Workspace/lib"
 
       - name: Prepare release directory
         run: |
